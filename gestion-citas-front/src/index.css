@@ -1,0 +1,288 @@
+/* ================== Estilos generales ================== */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #020617;
+  color: #e5e7eb;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.app-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ================== Header y navegación ================== */
+
+.app-header {
+  padding: 1rem 2rem;
+  border-bottom: 1px solid #1f2937;
+}
+
+.app-header h1 {
+  margin: 0;
+  font-size: 2rem;
+}
+
+.app-nav {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;           /* ← separación entre Citas / Pacientes / etc. */
+}
+
+.nav-link {
+  font-size: 0.95rem;
+  color: #e5e7eb;
+  text-decoration: none;
+}
+
+.nav-link:hover {
+  color: #38bdf8;
+}
+
+.nav-link-active {
+  border-bottom: 2px solid #38bdf8;
+  padding-bottom: 0.15rem;
+  font-weight: 600;
+}
+
+/* ================== Contenido principal ================== */
+
+.app-main {
+  flex: 1;
+  padding: 1.5rem 2rem 2.5rem;
+}
+
+/* ================== Páginas de listado ================== */
+
+.citas-page {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.citas-header h1 {
+  margin: 0 0 1rem;
+  font-size: 1.6rem;
+}
+
+.page-title {
+  margin-top: 1.5rem;
+  margin-bottom: 1rem;
+  font-size: 1.6rem;
+}
+
+/* ================== Filtros de listado ================== */
+
+.citas-filtros {
+  margin-top: 0.5rem;
+}
+
+.citas-filtros-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 1.5rem;
+  align-items: flex-end;
+}
+
+.filtro-item {
+  display: flex;
+  flex-direction: column;
+  min-width: 220px;
+}
+
+.filtro-item label {
+  margin-bottom: 0.25rem;
+  font-size: 0.85rem;
+}
+
+/* ================== Tarjetas de formulario ================== */
+/* (nuevo paciente, médico, tratamiento, etc.) */
+
+.form-card {
+  margin-top: 1rem;
+  max-width: 900px;
+  background-color: #020617;
+  padding: 1.5rem 2rem;
+  border-radius: 0.75rem;
+  border: 1px solid #1f2937;
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.7);
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem 1.5rem;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+}
+
+.form-field.full {
+  grid-column: 1 / -1;
+}
+
+.form-field label {
+  margin-bottom: 0.3rem;
+  font-size: 0.9rem;
+  color: #e5e7eb;
+}
+
+/* ================== Inputs ================== */
+/* Texto, números, selects, etc. */
+
+.form-field input[type="text"],
+.form-field input[type="number"],
+.form-field input[type="email"],
+.form-field input[type="datetime-local"],
+.form-field input[type="date"],
+.form-field input[type="tel"],
+.form-field input[type="password"],
+.form-field select,
+.form-field textarea {
+  width: 100%;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.95rem;
+  border-radius: 4px;
+  border: 1px solid #4b5563;
+  background-color: #020617;
+  color: #f9fafb;
+}
+
+/* Checkbox: sin estirarse a todo el ancho (arregla lo de “activo”) */
+
+.form-field input[type="checkbox"] {
+  width: auto;
+  height: auto;
+}
+
+/* Textarea un poco más alta */
+
+.form-field textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+
+/* ================== Botones ================== */
+
+.btn-primary {
+  margin-top: 0.75rem;
+  padding: 0.45rem 0.9rem;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  background-color: #22c55e;
+  color: #022c22;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  padding: 0.4rem 0.9rem;
+  border-radius: 4px;
+  border: 1px solid #4b5563;
+  background-color: #020617;
+  color: #e5e7eb;
+  cursor: pointer;
+}
+
+.btn {
+  padding: 0.35rem 0.8rem;
+  border-radius: 4px;
+  border: 1px solid #4b5563;
+  background-color: #020617;
+  color: #e5e7eb;
+  cursor: pointer;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ================== Tablas ================== */
+
+.citas-tabla-section {
+  margin-top: 1.5rem;
+}
+
+.citas-tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.citas-tabla thead {
+  background-color: #020617;
+}
+
+.citas-tabla th,
+.citas-tabla td {
+  padding: 0.45rem 0.75rem;
+  border-bottom: 1px solid #1f2937;
+  text-align: left;
+}
+
+.citas-tabla th {
+  font-weight: 600;
+}
+
+/* ================== Paginación ================== */
+
+.citas-paginacion {
+  margin-top: 1rem;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
+
+/* ================== Mensajes ================== */
+
+.error-text {
+  margin-top: 0.5rem;
+  color: #f97373;
+}
+
+.success-text {
+  margin-top: 0.5rem;
+  color: #4ade80;
+}
+
+/* ================== Responsive ================== */
+
+@media (max-width: 768px) {
+  .app-main {
+    padding: 1rem 1.25rem 2rem;
+  }
+
+  .form-card {
+    padding: 1rem 1.25rem;
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .citas-filtros-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .citas-paginacion {
+    justify-content: center;
+  }
+}
