@@ -2,22 +2,33 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const axios = require('axios');
 const { sql, poolPromise } = require('./db');
 
 const app = express();
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 3001;
 
-function generarFolioCita() {
-  const now = new Date();
-  const yyyy = now.getFullYear();
-  const mm = String(now.getMonth() + 1).padStart(2, '0');
-  const dd = String(now.getDate()).padStart(2, '0');
-  const hh = String(now.getHours()).padStart(2, '0');
-  const mi = String(now.getMinutes()).padStart(2, '0');
-  const ss = String(now.getSeconds()).padStart(2, '0');
+// URL del microservicio de Atención Clínica (notificación de cita)
+const ATENCION_CLINICA_URL =
+  process.env.ATENCION_CLINICA_URL ||
+  'http://192.168.24.166:3000/api/atencion/notificaciones-cita';
 
-  return `CITA-${yyyy}${mm}${dd}-${hh}${mi}${ss}`;
-}
+// URL del microservicio de Atención Clínica (sincronización de pacientes)
+const ATENCION_CLINICA_PACIENTES_URL =
+  process.env.ATENCION_CLINICA_PACIENTES_URL ||
+  'http://192.168.24.166:3000/api/atencion/pacientes';
+
+  // URL del microservicio de Atención Clínica (sincronización de pacientes)
+const caja_PACIENTES_URL =
+  process.env.caja_PACIENTES_URL ||
+  'http://192.168.24.166:3002/api/atencion/pacientes';
+
+  // --- URLs de CAJA (ejemplo, AJUSTAR) ---
+const CAJA_BASE_URL =
+  process.env.CAJA_BASE_URL || 'http://192.168.24.170:4000';
+
+const CAJA_SALDO_URL = `${CAJA_BASE_URL}/api/caja/saldo`;
+const CAJA_BLOQUEAR_MONTO_URL = `${CAJA_BASE_URL}/api/caja/bloquear-monto`;
 
 app.use(cors());
 app.use(express.json());
@@ -36,93 +47,9 @@ function generarFolioCita(fecha = new Date()) {
   return `CITA-${anio}${mes}${dia}-${hora}${min}${seg}`;
 }
 
-// Crear nueva cita
-app.post('/citas', async (req, res) => {
-  try {
-    const {
-      id_paciente,
-      id_medico,
-      id_tratamiento,
-      fecha_cita,          // string ISO: "2025-11-20T17:30"
-      medio_solicitud,     // PRESENCIAL / WHATSAPP / TELEFONO...
-      motivo_cita,
-      info_relevante,
-      observaciones,
-      responsable_registro // Recepción, Doctor, etc.
-    } = req.body;
-
-    // Validaciones mínimas
-    if (!id_paciente || !id_medico || !id_tratamiento || !fecha_cita) {
-      return res.status(400).json({
-        error: 'id_paciente, id_medico, id_tratamiento y fecha_cita son obligatorios'
-      });
-    }
-
-    const pool = await poolPromise;
-
-    const folio = generarFolioCita();
-
-    const request = pool.request();
-    request
-      .input('folio_cita',          sql.VarChar(30), folio)
-      .input('id_paciente',         sql.Int,         id_paciente)
-      .input('id_medico',           sql.Int,         id_medico)
-      .input('id_tratamiento',      sql.Int,         id_tratamiento)
-      .input('fecha_cita',          sql.DateTime2,   fecha_cita)
-      .input('medio_solicitud',     sql.VarChar(20),  medio_solicitud || null)
-      .input('motivo_cita',         sql.VarChar(200), motivo_cita || null)
-      .input('info_relevante',      sql.VarChar(500), info_relevante || null)
-      .input('observaciones',       sql.VarChar(500), observaciones || null)
-      .input('responsable_registro',sql.VarChar(100), responsable_registro || 'Recepción')
-      .input('estado_cita',         sql.VarChar(20),  'PROGRAMADA');
-
-    // Ajusta nombres de columnas según tu tabla Cita
-    const insertQuery = `
-      INSERT INTO Cita (
-        folio_cita,
-        id_paciente,
-        id_medico,
-        id_tratamiento,
-        fecha_cita,
-        medio_solicitud,
-        motivo_cita,
-        info_relevante,
-        observaciones,
-        responsable_registro,
-        estado_cita
-      )
-      OUTPUT INSERTED.*
-      VALUES (
-        @folio_cita,
-        @id_paciente,
-        @id_medico,
-        @id_tratamiento,
-        @fecha_cita,
-        @medio_solicitud,
-        @motivo_cita,
-        @info_relevante,
-        @observaciones,
-        @responsable_registro,
-        @estado_cita
-      );
-    `;
-
-    const result = await request.query(insertQuery);
-    const nuevaCita = result.recordset[0];
-
-    res.status(201).json({
-      message: 'Cita creada correctamente',
-      cita: nuevaCita
-    });
-  } catch (err) {
-    console.error('Error al crear cita:', err);
-    res.status(500).json({ error: 'Error interno al crear la cita' });
-  }
-});
-
-// ======================================================
-//                   PACIENTES
-// ======================================================
+/* ======================================================
+ *                     PACIENTES
+ * ====================================================== */
 
 /*
    GET /pacientes
@@ -213,7 +140,7 @@ app.get('/pacientes', async (req, res) => {
 /*
    GET /pacientes/:id
    Detalle de un paciente
- */
+*/
 app.get('/pacientes/:id', async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
@@ -251,9 +178,9 @@ app.get('/pacientes/:id', async (req, res) => {
 });
 
 /*
-    POST /pacientes
-    Crea un nuevo paciente
- */
+   POST /pacientes
+   ➕ Sincroniza el paciente con Atención Clínica
+*/
 app.post('/pacientes', async (req, res) => {
   try {
     const {
@@ -312,6 +239,25 @@ app.post('/pacientes', async (req, res) => {
     `);
 
     const newId = insertResult.recordset[0].id_paciente;
+
+    // 2) Notificar/sincronizar con Atención Clínica
+    try {
+      await axios.post(ATENCION_CLINICA_PACIENTES_URL, {
+        nombre,
+        apellidos,
+        fecha_nacimiento: fecha_nacimiento || null,
+        telefono: telefono || null,
+        correo: email || null
+      });
+
+      console.log('[GCITAS] Paciente sincronizado con ATENCIÓN CLÍNICA');
+    } catch (syncErr) {
+      console.error(
+        '[GCITAS] Error al sincronizar paciente con ATENCIÓN CLÍNICA:',
+        syncErr.response?.data || syncErr.message
+      );
+      // No hacemos rollback del paciente local: solo dejamos log del error.
+    }
 
     res.status(201).json({
       id_paciente: newId,
@@ -408,8 +354,11 @@ app.put('/pacientes/:id', async (req, res) => {
   }
 });
 
+/* ======================================================
+ *                      CITAS
+ * ====================================================== */
 
-/* ---------- POST /citas (Endpoint 1) ---------- */
+/* ---------- POST /citas con anticipo + notificación a Atención Clínica ---------- */
 app.post('/citas', async (req, res) => {
   let transaction;
 
@@ -509,6 +458,24 @@ app.post('/citas', async (req, res) => {
 
     await transaction.commit();
 
+    // Notificar a ATENCIÓN CLÍNICA (otra API)
+    try {
+      await axios.post(ATENCION_CLINICA_URL, {
+        folio_cita: folio,
+        fecha_cita,        // el string ISO que vino del front
+        Id_paciente: id_paciente,
+        Id_medico: id_medico
+      });
+
+      console.log('[GCITAS] Notificación enviada correctamente a ATENCIÓN CLÍNICA');
+    } catch (notifyErr) {
+      console.error(
+        '[GCITAS] Error notificando a ATENCIÓN CLÍNICA:',
+        notifyErr.response?.data || notifyErr.message
+      );
+      // No hacemos rollback: la cita ya quedó registrada en Gestión de Citas.
+    }
+
     res.status(201).json({
       message: 'Cita creada correctamente',
       cita: { id_cita, folio_cita: folio },
@@ -527,20 +494,7 @@ app.post('/citas', async (req, res) => {
   }
 });
 
-/* ---------- POST /citas/:id/confirmar-pago (Endpoint intermedio) ---------- */
-/*
-   Uso pensado para el FRONT de Gestión de Citas:
-
-   - El usuario ya tiene el id de pago que generó Caja (id_pago_caja).
-   - Llama a este endpoint con la cita concreta.
-   - El backend:
-        1) Busca el AnticipoCita PENDIENTE de esa cita.
-        2) Lo marca como PAGADO y guarda el id_pago_caja.
-        3) Actualiza la Cita.estado_pago -> 'PAGADO'.
-
-   En una integración real, este flujo lo dispararía Caja vía webhook,
-   pero aquí lo usamos como confirmación "manual" desde Gestión de Citas.
-*/
+/* ---------- POST /citas/:id/confirmar-pago ---------- */
 app.post('/citas/:id/confirmar-pago', async (req, res) => {
   const idCita = parseInt(req.params.id, 10);
   const { id_pago } = req.body;
@@ -637,11 +591,7 @@ app.post('/citas/:id/confirmar-pago', async (req, res) => {
   }
 });
 
-
-/* ---------- POST /pagos/notificacion (Endpoint 2) ---------- */
-/*
-   Caja llama a este endpoint cuando el pago del anticipo fue exitoso.
-*/
+/* ---------- POST /pagos/notificacion ---------- */
 app.post('/pagos/notificacion', async (req, res) => {
   const { id_paciente, id_pago } = req.body;
   let transaction;
@@ -727,98 +677,198 @@ app.post('/pagos/notificacion', async (req, res) => {
   }
 });
 
-// Endpoint 3: POST /citas/:id/iniciar-atencion
+// POST /citas/:id/iniciar-atencion
 app.post('/citas/:id/iniciar-atencion', async (req, res) => {
-  const idCita = parseInt(req.params.id, 10);
+  const { id } = req.params;
 
-  if (isNaN(idCita)) {
-    return res.status(400).json({ message: 'id_cita inválido' });
-  }
-
-  let pool;
   try {
-    pool = await poolPromise;
+    // 1. Buscar la cita
+    const [rows] = await pool.execute(
+      `SELECT c.*, 
+              p.nombre AS nombre_paciente,
+              p.apellidos AS apellidos_paciente
+       FROM Cita c
+       INNER JOIN Paciente p ON c.Id_paciente = p.Id_paciente
+       WHERE c.Id_cita = ?`,
+      [id]
+    );
 
-    // 1. Obtener la cita
-    const citaResult = await pool.request()
-      .input('id_cita', sql.Int, idCita)
-      .query(`
-        SELECT *
-        FROM Cita
-        WHERE id_cita = @id_cita
-      `);
-
-    if (citaResult.recordset.length === 0) {
+    if (rows.length === 0) {
       return res.status(404).json({ message: 'Cita no encontrada' });
     }
 
-    const cita = citaResult.recordset[0];
+    const cita = rows[0];
 
-    // 2. Validar estado de la cita
-    if (cita.estado_cita === 'CANCELADA') {
-      return res.status(409).json({
-        message: 'No se puede iniciar la atención de una cita cancelada'
+    // 2. Validaciones básicas de la cita
+    if (cita.estado === 'CANCELADA') {
+      return res.status(400).json({
+        message: 'No se puede iniciar la atención de una cita cancelada',
       });
     }
 
-    if (cita.estado_cita === 'ATENDIDA') {
-      return res.status(409).json({
-        message: 'Esta cita ya fue atendida'
+    if (cita.estado === 'ATENDIDA') {
+      return res.status(400).json({
+        message: 'Esta cita ya fue atendida',
       });
     }
 
-    // 3. Verificar si hay anticipo asociado
-    const anticipoResult = await pool.request()
-      .input('id_cita', sql.Int, idCita)
-      .query(`
-        SELECT TOP 1 *
-        FROM AnticipoCita
-        WHERE id_cita = @id_cita
-        ORDER BY fecha_solicitud DESC
-      `);
+    // Si tienes estado "EN_ATENCION" o algo así, también lo puedes validar
+    if (cita.estado === 'EN_ATENCION') {
+      return res.status(400).json({
+        message: 'La cita ya se encuentra en atención',
+      });
+    }
 
-    if (anticipoResult.recordset.length > 0) {
-      const anticipo = anticipoResult.recordset[0];
+    // 3. Verificar anticipo local (si aplica)
+    //    (OJO: esto depende de cómo definiste tu tabla AnticipoCita)
+    //    Ejemplo: si el anticipo es obligatorio antes de iniciar atención:
+    const [anticipos] = await pool.execute(
+      `SELECT *
+       FROM AnticipoCita
+       WHERE Id_cita = ?`,
+      [id]
+    );
 
-      if (anticipo.estado !== 'PAGADO') {
+    const anticipo = anticipos[0];
+
+    // Si requieres que el anticipo exista y esté pagado:
+    if (!anticipo) {
+      return res.status(409).json({
+        message: 'No existe un anticipo registrado para esta cita',
+      });
+    }
+
+    if (anticipo.estatus !== 'PAGADO') {
+      return res.status(409).json({
+        message: 'El anticipo de la cita aún no está pagado',
+      });
+    }
+
+    // 4. Verificación real de saldo con Caja (microservicio)
+    //    Supongamos que Caja valida el saldo total del paciente
+    //    y que además vamos a "bloquear" el monto completo de la cita.
+
+    // 4.1. Consultar saldo del paciente en Caja
+    let saldoCaja;
+    try {
+      const respCajaSaldo = await axios.get(
+        `${CAJA_SALDO_URL}/${cita.Id_paciente}`
+      );
+
+      // Ajustar según la estructura real de respuesta de Caja
+      saldoCaja = respCajaSaldo.data.saldo;
+
+      console.log(
+        `[CAJA] Saldo de paciente ${cita.Id_paciente}: ${saldoCaja}`
+      );
+    } catch (errSaldo) {
+      console.error(
+        '[CAJA] Error al consultar saldo del paciente:',
+        errSaldo.response?.data || errSaldo.message
+      );
+
+      return res.status(502).json({
+        message: 'No se pudo verificar el saldo del paciente en Caja',
+      });
+    }
+
+    const montoCita = Number(cita.monto_cobro || 0);
+
+    if (saldoCaja < montoCita) {
+      return res.status(409).json({
+        message:
+          'El paciente no cuenta con saldo suficiente en Caja para iniciar la atención',
+        saldo_disponible: saldoCaja,
+        monto_cita: montoCita,
+      });
+    }
+
+    // 4.2. Bloquear el monto de la cita en Caja (para que no se gaste en otra cosa)
+    let idBloqueoCaja = null;
+    try {
+      const respBloqueo = await axios.post(CAJA_BLOQUEAR_MONTO_URL, {
+        id_paciente: cita.Id_paciente,
+        id_cita: cita.Id_cita,
+        monto: montoCita,
+      });
+
+      // Ajustar según el contrato real de Caja
+      if (!respBloqueo.data.ok) {
         return res.status(409).json({
-          message: 'La cita requiere anticipo y aún no está pagado',
-          anticipo: {
-            id_anticipo: anticipo.id_anticipo,
-            estado: anticipo.estado
-          }
+          message: 'Caja no pudo bloquear el monto de la cita',
         });
       }
+
+      idBloqueoCaja = respBloqueo.data.id_bloqueo;
+
+      console.log(
+        `[CAJA] Bloqueo registrado correctamente. id_bloqueo=${idBloqueoCaja}`
+      );
+    } catch (errBloqueo) {
+      console.error(
+        '[CAJA] Error al bloquear monto en Caja:',
+        errBloqueo.response?.data || errBloqueo.message
+      );
+
+      return res.status(502).json({
+        message: 'No se pudo bloquear el monto de la cita en Caja',
+      });
     }
 
-    // 4. (Aquí iría la verificación real de saldo con Caja, cuando exista su API)
-    // Por ahora asumimos que si el anticipo está PAGADO, el saldo es suficiente.
+    // 5. Actualizar el estado de la cita a "EN_ATENCION" (o como lo llames)
+    //    y opcionalmente guardar el id_bloqueo de Caja si tienes un campo para eso
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
 
-    // 5. Actualizar estado de la cita a CONFIRMADA
-    await pool.request()
-      .input('id_cita', sql.Int, idCita)
-      .query(`
-        UPDATE Cita
-        SET estado_cita = 'CONFIRMADA'
-        WHERE id_cita = @id_cita
-      `);
+      await conn.execute(
+        `UPDATE Cita
+         SET estado = 'EN_ATENCION',
+             fecha_inicio_atencion = NOW(),
+         WHERE Id_cita = ?`,
+        [idBloqueoCaja, id]
+      );
 
-    return res.status(200).json({
-      message: 'Cita lista para iniciar atención en clínica',
+      await conn.commit();
+      conn.release();
+    } catch (txErr) {
+      await conn.rollback();
+      conn.release();
+
+      console.error(
+        '[GCITAS] Error al actualizar estado de cita a EN_ATENCION:',
+        txErr.message
+      );
+
+      // Si la transacción de BD falla, podrías avisar a Caja que cancele el bloqueo.
+      // Eso ya sería un paso extra:
+      // try {
+      //   await axios.post(`${CAJA_BASE_URL}/api/caja/cancelar-bloqueo`, { id_bloqueo: idBloqueoCaja });
+      // } catch (errCancelar) { ... }
+
+      return res.status(500).json({
+        message: 'Error al actualizar el estado de la cita',
+      });
+    }
+
+    // 6. Respuesta final
+    return res.json({
+      message: 'Atención iniciada correctamente',
       cita: {
-        id_cita: cita.id_cita,
-        folio_cita: cita.folio_cita,
-        estado_cita: 'CONFIRMADA'
-      }
+        id_cita: cita.Id_cita,
+        estado: 'EN_ATENCION',
+        monto_cita: montoCita,
+        id_bloqueo_caja: idBloqueoCaja,
+      },
     });
-
-  } catch (err) {
-    console.error('Error al iniciar atención:', err);
+  } catch (error) {
+    console.error('[GCITAS] Error general en iniciar-atencion:', error);
     return res.status(500).json({
-      message: 'Error al intentar iniciar la atención de la cita'
+      message: 'Error al iniciar la atención de la cita',
     });
   }
 });
+
 
 // GET /citas  -> lista de citas con filtros opcionales
 app.get('/citas', async (req, res) => {
@@ -930,7 +980,9 @@ app.get('/citas/resumen', async (req, res) => {
     pageSize = 20,
   } = req.query;
 
-  const offset = (page - 1) * pageSize;
+  const pageNumber = parseInt(page, 10) || 1;
+  const sizeNumber = parseInt(pageSize, 10) || 20;
+  const offset = (pageNumber - 1) * sizeNumber;
 
   try {
     const pool = await poolPromise;
@@ -1006,7 +1058,7 @@ app.get('/citas/resumen', async (req, res) => {
     });
 
     request.input('offset', sql.Int, offset);
-    request.input('pageSize', sql.Int, parseInt(pageSize, 10));
+    request.input('pageSize', sql.Int, sizeNumber);
 
     const [result, countResult] = await Promise.all([
       request.query(sqlQuery),
@@ -1017,8 +1069,8 @@ app.get('/citas/resumen', async (req, res) => {
 
     res.json({
       total,
-      page: parseInt(page, 10),
-      pageSize: parseInt(pageSize, 10),
+      page: pageNumber,
+      pageSize: sizeNumber,
       citas: result.recordset,
     });
   } catch (error) {
@@ -1027,8 +1079,7 @@ app.get('/citas/resumen', async (req, res) => {
   }
 });
 
-
-// Endpoint 4: Obtener detalle de una cita por ID
+// GET /citas/:id detalle
 app.get('/citas/:id', async (req, res) => {
   const { id } = req.params;
 
@@ -1105,8 +1156,6 @@ app.get('/citas/:id', async (req, res) => {
     }
 
     const row = result.recordset[0];
-
-    // Estructuramos la respuesta bonita
     const cita = {
       id_cita: row.id_cita,
       folio_cita: row.folio_cita,
@@ -1163,8 +1212,7 @@ app.get('/citas/:id', async (req, res) => {
   }
 });
 
-
-// Endpoint 3b: Marcar cita como ATENDIDA
+// POST /citas/:id/atendida
 app.post('/citas/:id/atendida', async (req, res) => {
   const idCita = parseInt(req.params.id, 10);
 
@@ -1230,8 +1278,6 @@ app.post('/citas/:id/atendida', async (req, res) => {
     const updateResult = await updateReq.query(`
       UPDATE Cita
       SET estado_cita = 'ATENDIDA'
-          -- Si más adelante agregas columna fecha_atencion, aquí va:
-          -- , fecha_atencion = GETDATE()
       OUTPUT INSERTED.id_cita,
              INSERTED.folio_cita,
              INSERTED.estado_cita,
@@ -1253,7 +1299,9 @@ app.post('/citas/:id/atendida', async (req, res) => {
   }
 });
 
-
+/* ======================================================
+ *                   MEDICOS
+ * ====================================================== */
 
 // Crear médico nuevo
 app.post('/medicos', async (req, res) => {
@@ -1367,51 +1415,9 @@ app.get('/medicos/:id', async (req, res) => {
   }
 });
 
-// Crear médico nuevo
-app.post('/medicos', async (req, res) => {
-  const {
-    nombre,
-    apellidos,
-    especialidad,
-    cedula_profesional,
-    activo,
-  } = req.body;
-
-  if (!nombre || !apellidos) {
-    return res
-      .status(400)
-      .json({ message: 'nombre y apellidos son obligatorios' });
-  }
-
-  try {
-    const pool = await poolPromise;
-
-    const result = await pool.request()
-      .input('nombre', sql.NVarChar(80), nombre)
-      .input('apellidos', sql.NVarChar(120), apellidos)
-      .input('especialidad', sql.NVarChar(80), especialidad || null)
-      .input('cedula_profesional', sql.NVarChar(30), cedula_profesional || null)
-      .input(
-        'activo',
-        sql.Bit,
-        typeof activo === 'boolean' ? (activo ? 1 : 0) : 1
-      )
-      .query(`
-        INSERT INTO Medico (nombre, apellidos, especialidad, cedula_profesional, activo)
-        OUTPUT INSERTED.*
-        VALUES (@nombre, @apellidos, @especialidad, @cedula_profesional, @activo)
-      `);
-
-    const medicoCreado = result.recordset[0];
-
-    return res.status(201).json({ medico: medicoCreado });
-  } catch (error) {
-    console.error('Error al crear médico:', error);
-    return res
-      .status(500)
-      .json({ message: 'Error al crear médico', error: error.message });
-  }
-});
+/* ======================================================
+ *                 TRATAMIENTOS
+ * ====================================================== */
 
 // Listar tratamientos
 app.get('/tratamientos', async (req, res) => {
@@ -1529,7 +1535,6 @@ app.post('/tratamientos', async (req, res) => {
       .json({ message: 'Error al crear tratamiento', error: error.message });
   }
 });
-
 
 /* ---------- Arrancar servidor ---------- */
 app.listen(port, () => {
