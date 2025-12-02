@@ -40,6 +40,7 @@ function CitasLista() {
       if (fechaHasta) params.fecha_hasta = fechaHasta;
 
       const data = await fetchCitasResumen(params);
+      // ahora data = { data: [...], pagination: {...} }
       setCitas(data.citas || []);
       setTotal(data.total || 0);
       setPage(data.page || p);

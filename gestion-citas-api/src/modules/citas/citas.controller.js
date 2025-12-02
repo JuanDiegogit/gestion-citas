@@ -53,7 +53,16 @@ async function listarCitas(req, res, next) {
 async function listarResumenCitas(req, res, next) {
   try {
     const resultado = await citasService.listarResumenCitas(req.query);
-    return res.json(resultado);
+    // resultado = { data: [...], pagination: { page, pageSize, total, totalPages } }
+
+    const { data, pagination } = resultado;
+
+    return res.json({
+      total: pagination.total,
+      page: pagination.page,
+      pageSize: pagination.pageSize,
+      citas: data,
+    });
   } catch (error) {
     next(error);
   }

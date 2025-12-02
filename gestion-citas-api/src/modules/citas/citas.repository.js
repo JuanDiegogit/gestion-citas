@@ -330,23 +330,36 @@ async function listarResumenCitas(
   dataRequest.input('pageSize', sql.Int, sizeNumber);
 
   const dataQuery = `
-    SELECT
-      c.id_cita           AS idCita,
-      c.id_paciente       AS idPaciente,
-      p.nombre            AS nombrePaciente,
-      p.apellidos         AS apellidosPaciente,
-      c.fecha_cita        AS fechaCita,
-      c.estado_cita       AS estadoCita,
-      c.estado_pago       AS estadoPago,
-      c.monto_cobro       AS montoCobro,
-      ISNULL(c.saldo_paciente, 0) AS saldoPaciente,
-      c.id_pago_caja      AS idPagoCaja
-    FROM Cita c
-    INNER JOIN Paciente p ON p.id_paciente = c.id_paciente
-    ${whereSql}
-    ORDER BY c.fecha_cita DESC, c.id_cita DESC
-    OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY;
-  `;
+  SELECT
+    c.id_cita,
+    c.folio_cita,
+    c.fecha_cita,
+    c.estado_cita,
+    c.estado_pago,
+    c.monto_cobro,
+    ISNULL(c.saldo_paciente, 0) AS saldo_paciente,
+
+    c.id_paciente,
+    p.nombre    AS paciente_nombre,
+    p.apellidos AS paciente_apellidos,
+
+    c.id_medico,
+    m.nombre    AS medico_nombre,
+    m.apellidos AS medico_apellidos,
+
+    -- si hay anticipo pendiente, marcamos 1
+    CASE WHEN a.id_anticipo IS NOT NULL THEN 1 ELSE 0 END AS tiene_anticipo
+  FROM Cita c
+  INNER JOIN Paciente p ON p.id_paciente = c.id_paciente
+  INNER JOIN Medico m   ON m.id_medico   = c.id_medico
+  LEFT JOIN AnticipoCita a
+    ON a.id_cita = c.id_cita
+   AND a.estado = 'PENDIENTE'
+  ${whereSql}
+  ORDER BY c.fecha_cita DESC, c.id_cita DESC
+  OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY;
+`;
+
 
   const dataResult = await dataRequest.query(dataQuery);
 
