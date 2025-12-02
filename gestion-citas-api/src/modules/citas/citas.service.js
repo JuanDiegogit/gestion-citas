@@ -454,10 +454,49 @@ async function confirmarPagoCita(idCitaRaw, payload) {
   }
 }
 
+const ESTADOS_CITA_VALIDOS = ['PROGRAMADA', 'CONFIRMADA', 'CANCELADA', 'ATENDIDA'];
+
+async function cambiarEstadoCita(idRaw, nuevoEstado) {
+  if (!/^\d+$/.test(String(idRaw))) {
+    const err = new Error('El id de la cita debe ser un entero positivo');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  if (!ESTADOS_CITA_VALIDOS.includes(nuevoEstado)) {
+    const err = new Error(`Estado de cita no válido: ${nuevoEstado}`);
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const id = parseInt(idRaw, 10);
+  const cita = await citasRepository.actualizarEstadoCita(id, nuevoEstado);
+
+  if (!cita) {
+    const err = new Error('Cita no encontrada');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  return cita;
+}
+
+async function iniciarAtencion(idCitaRaw) {
+  // Para tu modelo de datos, usaré CONFIRMADA como "en atención"
+  return cambiarEstadoCita(idCitaRaw, 'CONFIRMADA');
+}
+
+async function marcarAtendida(idCitaRaw) {
+  return cambiarEstadoCita(idCitaRaw, 'ATENDIDA');
+}
+
+
 module.exports = {
   crearCita,
   listarCitas,
   listarResumenCitas,
   obtenerDetalleCita,
   confirmarPagoCita,
+  iniciarAtencion,
+  marcarAtendida,
 };

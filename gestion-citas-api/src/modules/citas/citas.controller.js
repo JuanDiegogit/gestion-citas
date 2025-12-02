@@ -54,7 +54,6 @@ async function listarResumenCitas(req, res, next) {
   try {
     const resultado = await citasService.listarResumenCitas(req.query);
     // resultado = { data: [...], pagination: { page, pageSize, total, totalPages } }
-
     const { data, pagination } = resultado;
 
     return res.json({
@@ -67,7 +66,6 @@ async function listarResumenCitas(req, res, next) {
     next(error);
   }
 }
-
 /**
  * GET /citas/:id
  * Detalle completo de una cita (paciente, médico, tratamiento, anticipo).
@@ -76,7 +74,40 @@ async function obtenerDetalleCita(req, res, next) {
   try {
     const { id } = req.params;
     const cita = await citasService.obtenerDetalleCita(id);
-    return res.json(cita);
+    // MUY IMPORTANTE: responder con { cita: ... } porque el front hace data.cita
+    return res.json({ cita });
+  } catch (error) {
+    next(error);
+  }
+}
+
+// POST /citas/:id/iniciar-atencion
+// Cambia estado_cita a 'CONFIRMADA'
+async function iniciarAtencion(req, res, next) {
+  try {
+    const { id } = req.params;
+    const citaActualizada = await citasService.iniciarAtencion(id);
+
+    return res.json({
+      message: 'Cita marcada como CONFIRMADA (en atención)',
+      cita: citaActualizada,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+// POST /citas/:id/atendida
+// Cambia estado_cita a 'ATENDIDA'
+async function marcarAtendida(req, res, next) {
+  try {
+    const { id } = req.params;
+    const citaActualizada = await citasService.marcarAtendida(id);
+
+    return res.json({
+      message: 'Cita marcada como ATENDIDA',
+      cita: citaActualizada,
+    });
   } catch (error) {
     next(error);
   }
@@ -110,4 +141,6 @@ module.exports = {
   listarResumenCitas,
   obtenerDetalleCita,
   confirmarPagoCita,
+  iniciarAtencion,
+  marcarAtendida,
 };

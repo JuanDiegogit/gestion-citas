@@ -21,6 +21,14 @@ router.get('/resumen', citasController.listarResumenCitas);
 // Detalle completo de una cita
 router.get('/:id', citasController.obtenerDetalleCita);
 
+// POST /citas/:id/iniciar-atencion
+// Cambia el estado de la cita a CONFIRMADA
+router.post('/:id/iniciar-atencion', citasController.iniciarAtencion);
+
+// POST /citas/:id/atendida
+// Cambia el estado de la cita a ATENDIDA
+router.post('/:id/atendida', citasController.marcarAtendida);
+
 // POST /citas/:id/confirmar-pago
 // Confirmar pago de la cita (lo llama Caja)
 router.post('/:id/confirmar-pago', citasController.confirmarPagoCita);

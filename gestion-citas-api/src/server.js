@@ -9,6 +9,8 @@ const citasRoutes = require('./modules/citas/citas.routes');
 const pacientesRoutes = require('./modules/pacientes/pacientes.routes');
 const notFound = require('./middlewares/notFound');
 const errorHandler = require('./middlewares/errorHandler');
+const medicosRoutes = require('./modules/Medicos/medicos.routes');           
+const tratamientosRoutes = require('./modules/Tratamientos/tratamientos.routes'); 
 
 const app = express();
 
@@ -34,6 +36,8 @@ app.get('/health', (req, res) => {
 // ──────────────────────────────────────────────
 app.use('/citas', citasRoutes);
 app.use('/pacientes', pacientesRoutes);
+app.use('/medicos', medicosRoutes);           // ← nuevo
+app.use('/tratamientos', tratamientosRoutes); // ← nuevo
 
 // ──────────────────────────────────────────────
 //  Middlewares finales
@@ -49,5 +53,6 @@ const listenPort = PORT || process.env.PORT || 3001;
 app.listen(listenPort, () => {
   console.log(`API SIGCD escuchando en http://localhost:${listenPort}`);
 });
+
 
 module.exports = app;

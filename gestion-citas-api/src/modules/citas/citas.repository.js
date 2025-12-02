@@ -374,6 +374,35 @@ async function listarResumenCitas(
   };
 }
 
+async function actualizarEstadoCita(id_cita, nuevoEstado) {
+  const pool = await poolPromise;
+  const request = pool.request();
+
+  request.input('id_cita', sql.Int, id_cita);
+  request.input('estado_cita', sql.NVarChar(20), nuevoEstado);
+
+  const query = `
+    UPDATE Cita
+    SET estado_cita = @estado_cita
+    WHERE id_cita = @id_cita;
+
+    SELECT
+      id_cita,
+      folio_cita,
+      fecha_cita,
+      estado_cita,
+      estado_pago,
+      monto_cobro,
+      ISNULL(saldo_paciente, 0) AS saldo_paciente
+    FROM Cita
+    WHERE id_cita = @id_cita;
+  `;
+
+  const result = await request.query(query);
+  return result.recordset[0] || null;
+}
+
+
 module.exports = {
   crearCita,
   crearAnticipo,
@@ -382,4 +411,5 @@ module.exports = {
   actualizarCitaComoPagada,
   listarCitas,
   listarResumenCitas,
+  actualizarEstadoCita,
 };
