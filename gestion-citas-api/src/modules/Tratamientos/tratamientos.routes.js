@@ -13,3 +13,4 @@ router.get('/:id', tratamientosController.obtenerTratamiento);
 router.post('/', tratamientosController.crearTratamiento);
 
 module.exports = router;
+//fin del documento

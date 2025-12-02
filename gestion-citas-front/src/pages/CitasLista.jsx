@@ -1,14 +1,14 @@
 // src/pages/CitasLista.jsx
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   fetchCitasResumen,
   iniciarAtencion,
   marcarAtendida,
-  confirmarPago,
+  registrarPagoAnticipoEnCaja,
 } from '../api/citasApi';
 
-function CitasLista() {
+export default function CitasLista() {
   const navigate = useNavigate();
 
   const [citas, setCitas] = useState([]);
@@ -24,84 +24,71 @@ function CitasLista() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  async function loadCitas(p = page) {
+  useEffect(() => {
+    loadCitas(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [estadoFiltro, idMedicoFiltro, fechaDesde, fechaHasta]);
+
+  async function loadCitas(p = 1) {
     try {
       setLoading(true);
       setError('');
-
-      const params = {
-        page: p,
-        pageSize,
-      };
-
+      const params = { page: p, pageSize };
       if (estadoFiltro !== 'TODOS') params.estado_cita = estadoFiltro;
       if (idMedicoFiltro) params.id_medico = idMedicoFiltro;
       if (fechaDesde) params.fecha_desde = fechaDesde;
       if (fechaHasta) params.fecha_hasta = fechaHasta;
 
       const data = await fetchCitasResumen(params);
-      // ahora data = { data: [...], pagination: {...} }
       setCitas(data.citas || []);
       setTotal(data.total || 0);
       setPage(data.page || p);
     } catch (err) {
-      console.error(err);
-      setError('Error al cargar las citas.');
+      console.error('Error cargando citas:', err);
+      setError('Error cargando las citas.');
     } finally {
       setLoading(false);
     }
   }
 
-  useEffect(() => {
-    loadCitas(1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [estadoFiltro, idMedicoFiltro, fechaDesde, fechaHasta]);
-
-  function handleLimpiarFiltros() {
-    setEstadoFiltro('TODOS');
-    setIdMedicoFiltro('');
-    setFechaDesde('');
-    setFechaHasta('');
-  }
-
   async function handleIniciarAtencion(cita) {
     if (!window.confirm(`¿Iniciar atención de la cita ${cita.folio_cita}?`)) return;
     try {
+      setLoading(true);
       await iniciarAtencion(cita.id_cita);
-      await loadCitas();
+      await loadCitas(page);
     } catch (err) {
-      console.error(err);
-      alert('Error al iniciar atención');
+      console.error('Error iniciando atención:', err);
+      setError('No se pudo iniciar la atención.');
+    } finally {
+      setLoading(false);
     }
   }
 
   async function handleMarcarAtendida(cita) {
-    if (
-      !window.confirm(
-        `¿Marcar como ATENDIDA la cita ${cita.folio_cita}?`
-      )
-    )
-      return;
+    if (!window.confirm(`¿Marcar como ATENDIDA la cita ${cita.folio_cita}?`)) return;
     try {
+      setLoading(true);
       await marcarAtendida(cita.id_cita);
-      await loadCitas();
+      await loadCitas(page);
     } catch (err) {
-      console.error(err);
-      alert('Error al marcar como atendida');
+      console.error('Error marcando cita como atendida:', err);
+      setError('No se pudo marcar como atendida.');
+    } finally {
+      setLoading(false);
     }
   }
 
   async function handleConfirmarPago(cita) {
-    const idPagoCaja = window.prompt(
-      `Ingresa el ID de pago de Caja para la cita ${cita.folio_cita}:`
-    );
-    if (!idPagoCaja) return;
     try {
-      await confirmarPago(cita.id_cita, idPagoCaja);
-      await loadCitas();
+      setLoading(true);
+      await registrarPagoAnticipoEnCaja(cita.id_cita);
+      await loadCitas(page);
     } catch (err) {
-      console.error(err);
-      alert('Error al registrar el pago del anticipo en Caja');
+      console.error('Error registrando pago de anticipo:', err);
+      setError('No se pudo registrar el pago de anticipo.');
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -109,33 +96,21 @@ function CitasLista() {
 
   return (
     <div className="citas-page">
-      {/* Encabezado */}
       <div className="citas-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h1>Agenda de citas</h1>
-        <button
-          className="btn-primary"
-          type="button"
-          onClick={() => navigate('/citas/nueva')}
-        >
+        <button className="btn-primary" onClick={() => navigate('/citas/nueva')}>
           + Nueva cita
         </button>
       </div>
 
-      {/* Filtros */}
       <section className="citas-filtros">
         <form
           className="citas-filtros-form"
-          onSubmit={(e) => {
-            e.preventDefault();
-            loadCitas(1);
-          }}
+          onSubmit={(e) => { e.preventDefault(); loadCitas(1); }}
         >
           <div className="filtro-item">
             <label>Estado de cita</label>
-            <select
-              value={estadoFiltro}
-              onChange={(e) => setEstadoFiltro(e.target.value)}
-            >
+            <select value={estadoFiltro} onChange={e => setEstadoFiltro(e.target.value)}>
               <option value="TODOS">Todos</option>
               <option value="PROGRAMADA">PROGRAMADA</option>
               <option value="CONFIRMADA">CONFIRMADA</option>
@@ -149,7 +124,7 @@ function CitasLista() {
             <input
               type="number"
               value={idMedicoFiltro}
-              onChange={(e) => setIdMedicoFiltro(e.target.value)}
+              onChange={e => setIdMedicoFiltro(e.target.value)}
               placeholder="Ej. 1"
             />
           </div>
@@ -159,7 +134,7 @@ function CitasLista() {
             <input
               type="date"
               value={fechaDesde}
-              onChange={(e) => setFechaDesde(e.target.value)}
+              onChange={e => setFechaDesde(e.target.value)}
             />
           </div>
 
@@ -168,33 +143,27 @@ function CitasLista() {
             <input
               type="date"
               value={fechaHasta}
-              onChange={(e) => setFechaHasta(e.target.value)}
+              onChange={e => setFechaHasta(e.target.value)}
             />
           </div>
 
           <div className="filtro-item" style={{ flexDirection: 'row', gap: '0.5rem', alignItems: 'flex-end' }}>
-            <button type="submit" className="btn">
-              Aplicar filtros
-            </button>
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={handleLimpiarFiltros}
-            >
-              Limpiar filtros
-            </button>
+            <button type="submit" className="btn">Aplicar filtros</button>
+            <button type="button" className="btn-secondary" onClick={() => {
+              setEstadoFiltro('TODOS');
+              setIdMedicoFiltro('');
+              setFechaDesde('');
+              setFechaHasta('');
+            }}>Limpiar filtros</button>
           </div>
         </form>
       </section>
 
-      {/* Tabla */}
       <section className="citas-tabla-section">
         {loading && <p>Cargando citas...</p>}
         {error && <p className="error-text">{error}</p>}
 
-        {!loading && citas.length === 0 && (
-          <p>No hay citas con esos filtros.</p>
-        )}
+        {!loading && citas.length === 0 && <p>No hay citas con esos filtros.</p>}
 
         {!loading && citas.length > 0 && (
           <>
@@ -205,23 +174,19 @@ function CitasLista() {
                   <th>Fecha</th>
                   <th>Paciente</th>
                   <th>Médico</th>
-                  <th>Estado de cita</th>
-                  <th>Estado de pago (Caja)</th>
+                  <th>Estado cita</th>
+                  <th>Estado pago (Caja)</th>
                   <th style={{ width: '360px' }}>Acciones</th>
                 </tr>
               </thead>
               <tbody>
-                {citas.map((cita) => {
+                {citas.map(cita => {
                   const fecha = new Date(cita.fecha_cita);
                   const fechaStr = fecha.toLocaleString();
 
                   let estadoPagoCajaTexto = 'SIN_PAGO';
-                  if (cita.estado_pago) {
-                    if (cita.estado_pago === 'PAGADO') {
-                      estadoPagoCajaTexto = 'PAGADO (confirmado en Caja)';
-                    } else {
-                      estadoPagoCajaTexto = `${cita.estado_pago} (pendiente en Caja)`;
-                    }
+                  if (cita.estado_pago === 'PAGADO') {
+                    estadoPagoCajaTexto = 'PAGADO (confirmado en Caja)';
                   } else if (cita.tiene_anticipo) {
                     estadoPagoCajaTexto = 'SIN_ANTICIPO (pendiente en Caja)';
                   }
@@ -234,40 +199,26 @@ function CitasLista() {
                       <td>{cita.medico_nombre}</td>
                       <td>{cita.estado_cita}</td>
                       <td>{estadoPagoCajaTexto}</td>
-                      <td>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
-                          <button
-                            className="btn"
-                            type="button"
-                            onClick={() => navigate(`/citas/${cita.id_cita}`)}
-                          >
-                            Ver detalle
-                          </button>
-                          <button
-                            className="btn"
-                            type="button"
-                            onClick={() => handleIniciarAtencion(cita)}
-                          >
-                            Iniciar atención
-                          </button>
-                          <button
-                            className="btn"
-                            type="button"
-                            onClick={() => handleMarcarAtendida(cita)}
-                          >
-                            Marcar atendida
-                          </button>
-                          <button
-                            className="btn"
-                            type="button"
-                            onClick={() => handleConfirmarPago(cita)}
-                            disabled={cita.estado_pago === 'PAGADO'}
-                          >
-                            {cita.estado_pago === 'PAGADO'
-                              ? 'Pago ya confirmado'
-                              : 'Registrar pago de anticipo en Caja'}
-                          </button>
-                        </div>
+                      <td style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
+                        <button className="btn" type="button" onClick={() => navigate(`/citas/${cita.id_cita}`)}>
+                          Ver detalle
+                        </button>
+                        <button className="btn" type="button" onClick={() => handleIniciarAtencion(cita)}>
+                          Iniciar atención
+                        </button>
+                        <button className="btn" type="button" onClick={() => handleMarcarAtendida(cita)}>
+                          Marcar atendida
+                        </button>
+                        <button
+                          className="btn"
+                          type="button"
+                          onClick={() => handleConfirmarPago(cita)}
+                          disabled={cita.estado_pago === 'PAGADO' || loading}
+                        >
+                          {cita.estado_pago === 'PAGADO'
+                            ? 'Pago confirmado'
+                            : 'Registrar pago de anticipo en Caja'}
+                        </button>
                       </td>
                     </tr>
                   );
@@ -302,5 +253,4 @@ function CitasLista() {
     </div>
   );
 }
-
-export default CitasLista;
+//fin del documento

@@ -122,8 +122,13 @@ function CitaNueva() {
       setSuccess('Cita creada correctamente.');
       setTimeout(() => navigate('/citas'), 800);
     } catch (err) {
-      console.error(err);
-      setError('Error al crear la cita.');
+  console.error(err);
+  const msg =
+    err.response?.data?.error ||
+    err.response?.data?.message ||
+    err.message ||
+    'Error al crear la cita.';
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -296,3 +301,4 @@ function CitaNueva() {
 }
 
 export default CitaNueva;
+//fin del documento

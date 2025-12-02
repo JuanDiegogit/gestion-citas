@@ -169,3 +169,4 @@ function PacienteNuevo() {
 }
 
 export default PacienteNuevo;
+//fin del documento

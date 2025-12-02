@@ -13,3 +13,4 @@ function generarFolioCita(fecha = new Date()) {
 }
 
 module.exports = { generarFolioCita };
+//Fin del documento

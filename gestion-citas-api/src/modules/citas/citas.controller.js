@@ -135,6 +135,22 @@ async function confirmarPagoCita(req, res, next) {
   }
 }
 
+async function registrarPagoAnticipoEnCaja(req, res, next) {
+  try {
+    const idCita = parseInt(req.params.id_cita, 10);
+
+    if (Number.isNaN(idCita)) {
+      return res.status(400).json({ error: 'ID de cita inválido' });
+    }
+
+    const resultado = await citasService.registrarPagoAnticipoEnCaja(idCita);
+
+    return res.status(200).json(resultado);
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   crearCita,
   listarCitas,
@@ -143,4 +159,6 @@ module.exports = {
   confirmarPagoCita,
   iniciarAtencion,
   marcarAtendida,
+  registrarPagoAnticipoEnCaja,
 };
+//Fin del documento

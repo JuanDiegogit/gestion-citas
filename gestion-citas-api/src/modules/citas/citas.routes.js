@@ -33,4 +33,11 @@ router.post('/:id/atendida', citasController.marcarAtendida);
 // Confirmar pago de la cita (lo llama Caja)
 router.post('/:id/confirmar-pago', citasController.confirmarPagoCita);
 
+// POST /citas/:id_cita/registrar-pago-anticipo-caja
+router.post(
+  '/:id_cita/registrar-pago-anticipo-caja',
+  citasController.registrarPagoAnticipoEnCaja
+);
+
 module.exports = router;
+//fin del documento

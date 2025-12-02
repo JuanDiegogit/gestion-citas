@@ -401,6 +401,25 @@ async function actualizarEstadoCita(id_cita, nuevoEstado) {
   const result = await request.query(query);
   return result.recordset[0] || null;
 }
+async function obtenerCitaPorId(idCita) {
+  const pool = await poolPromise;
+  const request = pool.request();
+
+  request.input('id_cita', sql.Int, idCita);
+
+  const result = await request.query(`
+    SELECT c.id_cita,
+           c.id_paciente,
+           c.id_medico,
+           c.monto_cobro,
+           c.estado_pago,
+           c.folio_cita
+    FROM Cita c
+    WHERE c.id_cita = @id_cita
+  `);
+
+  return result.recordset[0] || null;
+}
 
 
 module.exports = {
@@ -412,4 +431,6 @@ module.exports = {
   listarCitas,
   listarResumenCitas,
   actualizarEstadoCita,
+  obtenerCitaPorId,
 };
+//fin del documento

@@ -162,3 +162,4 @@ function TratamientoNuevo() {
 }
 
 export default TratamientoNuevo;
+//fin del documento

@@ -112,3 +112,4 @@ module.exports = {
   obtenerTratamientoPorId,
   crearTratamiento,
 };
+//fin del documento

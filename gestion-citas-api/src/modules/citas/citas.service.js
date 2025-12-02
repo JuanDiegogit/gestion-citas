@@ -3,6 +3,7 @@ const { sql, poolPromise } = require('../../db');
 const { generarFolioCita } = require('../../utils/generarFolioCita');
 const citasRepository = require('./citas.repository');
 const atencionClinicaClient = require('../../integrations/atencionClinica.client');
+const cajaClient = require('../../integrations/caja.client');
 
 /**
  * Normaliza un valor booleano que puede venir como:
@@ -116,22 +117,33 @@ async function crearCita(payload) {
     // 3) Commit
     await transaction.commit();
 
-    // 4) Notificar a Atención Clínica (fuera de la transacción)
-    await atencionClinicaClient.notificarNuevaCita({
-      id_cita,
-      folio_cita: folio,
-      id_paciente,
-      id_medico,
-      id_tratamiento: id_tratamiento || null,
-      fecha_cita: fechaCitaDate,
-      medio_solicitud,
-      motivo_cita: motivo_cita || null,
-      info_relevante: info_relevante || null,
-      observaciones: observaciones || null,
-      responsable_registro: responsable_registro || 'SISTEMA',
-      requiere_anticipo: requiereAnticipoBool,
-      monto_anticipo: requiereAnticipoBool ? montoAnticipoNum || 0 : 0,
-    });
+   // 4) Notificar a Atención Clínica (fuera de la transacción, best-effort)
+try {
+  await atencionClinicaClient.notificarNuevaCita({
+    id_cita,
+    folio_cita: folio,
+    id_paciente,
+    id_medico,
+    id_tratamiento: id_tratamiento || null,
+    fecha_cita: fechaCitaDate,
+    medio_solicitud,
+    motivo_cita: motivo_cita || null,
+    info_relevante: info_relevante || null,
+    observaciones: observaciones || null,
+    responsable_registro: responsable_registro || 'SISTEMA',
+    requiere_anticipo: requiereAnticipoBool,
+    monto_anticipo: requiereAnticipoBool ? montoAnticipoNum || 0 : 0,
+  });
+  } catch (notifyErr) {
+    console.error(
+      '[SIGCD] Error al notificar nueva cita a ATENCIÓN CLÍNICA:',
+      notifyErr.cause?.response?.data ||
+        notifyErr.response?.data ||
+        notifyErr.message ||
+        notifyErr
+    );
+  }
+
 
     return {
       id_cita,
@@ -490,6 +502,47 @@ async function marcarAtendida(idCitaRaw) {
   return cambiarEstadoCita(idCitaRaw, 'ATENDIDA');
 }
 
+async function registrarPagoAnticipoEnCaja(idCita) {
+  // 1. Obtener datos de la cita
+  const cita = await citasRepository.obtenerCitaPorId(idCita);
+
+  if (!cita) {
+    const err = new Error('Cita no encontrada');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  // Validaciones básicas
+  if (cita.estado_pago === 'PAGADO') {
+    const err = new Error('La cita ya tiene el pago registrado');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  if (!cita.monto_cobro || cita.monto_cobro <= 0) {
+    const err = new Error('La cita no tiene monto de cobro configurado');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const payloadCobro = {
+    idCita: cita.id_cita,
+    idPaciente: cita.id_paciente,
+    monto: cita.monto_cobro,
+    metodoPago: 'EFECTIVO',
+  };
+
+  const resultadoCaja = await cajaClient.crearCobroEnCaja(payloadCobro);
+
+  return {
+  mensaje: resultadoCaja.timeout
+    ? 'Cobro enviado a Caja (respuesta no confirmada; revisar en Caja).'
+    : 'Cobro enviado a Caja correctamente',
+  caja: resultadoCaja,
+};
+
+}
+
 
 module.exports = {
   crearCita,
@@ -499,4 +552,6 @@ module.exports = {
   confirmarPagoCita,
   iniciarAtencion,
   marcarAtendida,
+  registrarPagoAnticipoEnCaja,
 };
+//Fin del documento

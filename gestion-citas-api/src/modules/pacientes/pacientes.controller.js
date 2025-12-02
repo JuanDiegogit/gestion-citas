@@ -65,3 +65,4 @@ module.exports = {
   crearPaciente,
   actualizarPaciente,
 };
+//fin del documento

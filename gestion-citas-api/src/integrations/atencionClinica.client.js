@@ -86,3 +86,4 @@ module.exports = {
   notificarNuevaCita,
   sincronizarPaciente,
 };
+//fin del documento

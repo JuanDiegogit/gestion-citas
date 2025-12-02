@@ -1,3 +1,4 @@
+//db.js
 const sql = require('mssql');
 require('dotenv').config();
 
@@ -29,3 +30,4 @@ module.exports = {
   sql,
   poolPromise
 };
+//Fin del documento

@@ -110,4 +110,30 @@ export async function crearTratamiento(payload) {
   return data.tratamiento;
 }
 
+// ----- Pagos en Caja: registrar anticipo desde SIGCD -----
+export async function registrarPagoAnticipoEnCaja(idCita) {
+  try {
+    const { data } = await api.post(
+      `/citas/${idCita}/registrar-pago-anticipo-caja`
+    );
+    // data puede ser { mensaje, caja: { mensaje, idCobro } } según como lo armes en el backend
+    return data;
+  } catch (error) {
+    // axios incluye response cuando el servidor respondió con error
+    if (error.response && error.response.data) {
+      const errData = error.response.data;
+      throw new Error(
+        errData.error ||
+          errData.mensaje ||
+          'Error registrando pago en Caja'
+      );
+    }
+
+    // error de red / timeout / etc.
+    throw new Error('Error registrando pago en Caja');
+  }
+}
+
+
 export default api;
+//fin del documento

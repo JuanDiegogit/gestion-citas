@@ -20,3 +20,4 @@ module.exports = {
   ATENCION_CLINICA_URL,
   ATENCION_CLINICA_PACIENTES_URL,
 };
+//fin del documento

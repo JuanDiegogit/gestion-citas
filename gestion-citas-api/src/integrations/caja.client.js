@@ -8,7 +8,7 @@ const { CAJA_BASE_URL } = require('../config/env');
  */
 const http = axios.create({
   baseURL: CAJA_BASE_URL,
-  timeout: 5000, // puedes ajustar este valor si lo necesitas
+  timeout: 30000, // puedes subirlo si quieres, pero lo dejamos por ahora
 });
 
 /*
@@ -108,10 +108,55 @@ async function bloquearMonto({ idPaciente, monto }) {
 
   return safePost('/api/caja/bloquear-monto', { idPaciente, monto });
 }
+/**
+ * Crear un cobro en la API de Caja.
+ * Si hay timeout (ECONNABORTED) asumimos éxito parcial:
+ *   - Es muy probable que Caja sí haya creado el cobro,
+ *   - No tiramos error al front de SIGCD.
+ */
+async function crearCobroEnCaja({ idCita, idPaciente, monto, metodoPago }) {
+  try {
+    const resp = await http.post('/api/cobros', {
+      idCita,
+      idPaciente,
+      monto,
+      metodoPago,
+    });
+
+    return resp.data; // { mensaje, idCobro, ... }
+  } catch (error) {
+    // Caso específico: timeout entre SIGCD y Caja
+    if (error.code === 'ECONNABORTED') {
+      console.warn(
+        '[CAJA] Timeout esperando respuesta de /api/cobros; ' +
+          'es probable que el cobro se haya creado correctamente en Caja.'
+      );
+
+      // devolvemos un pseudo-resultado para que el servicio NO truene
+      return {
+        mensaje:
+          'Cobro enviado a Caja (timeout al esperar la respuesta). Revisar en Caja si quedó registrado.',
+        timeout: true,
+      };
+    }
+
+    // Otros errores sí se consideran fallo real
+    const detalle = error.response?.data || error.message;
+    console.error('[CAJA] Error en POST /api/cobros:', detalle);
+
+    const err = new Error('Error al comunicarse con CAJA (POST /api/cobros)');
+    err.cause = error;
+    err.statusCode = error.response?.status || 502;
+    throw err;
+  }
+}
+
 
 module.exports = {
   registrarPaciente,
   crearPresupuesto,
   obtenerSaldoCaja,
   bloquearMonto,
+  crearCobroEnCaja,
 };
+//fin del documento

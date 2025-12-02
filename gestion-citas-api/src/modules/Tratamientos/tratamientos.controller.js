@@ -44,3 +44,4 @@ module.exports = {
   obtenerTratamiento,
   crearTratamiento,
 };
+//fin del documento

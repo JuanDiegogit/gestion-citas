@@ -13,3 +13,4 @@ router.get('/:id', medicosController.obtenerMedico);
 router.post('/', medicosController.crearMedico);
 
 module.exports = router;
+//fin del documento

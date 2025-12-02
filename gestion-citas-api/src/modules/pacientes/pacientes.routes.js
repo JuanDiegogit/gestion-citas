@@ -16,3 +16,4 @@ router.post('/', pacientesController.crearPaciente);
 router.put('/:id', pacientesController.actualizarPaciente);
 
 module.exports = router;
+//fin del documento
