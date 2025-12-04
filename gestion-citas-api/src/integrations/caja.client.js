@@ -8,7 +8,7 @@ const { CAJA_BASE_URL } = require('../config/env');
  */
 const http = axios.create({
   baseURL: CAJA_BASE_URL,
-  timeout: 30000, // puedes subirlo si quieres, pero lo dejamos por ahora
+  timeout: 500, // puedes subirlo si quieres, pero lo dejamos por ahora
 });
 
 /*

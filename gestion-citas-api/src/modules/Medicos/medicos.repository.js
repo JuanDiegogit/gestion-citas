@@ -1,12 +1,11 @@
 // src/modules/medicos/medicos.repository.js
-const { sql, poolPromise } = require('../../db');
+const { pool } = require('../../config/db');
 
 /**
  * Lista todos los médicos (por ahora sin paginación).
  */
 async function listarMedicos() {
-  const pool = await poolPromise;
-  const result = await pool.request().query(`
+  const sql = `
     SELECT
       id_medico,
       nombre,
@@ -14,23 +13,19 @@ async function listarMedicos() {
       especialidad,
       cedula_profesional,
       activo
-    FROM Medico
+    FROM medico
     ORDER BY nombre, apellidos;
-  `);
+  `;
 
-  return result.recordset;
+  const [rows] = await pool.query(sql);
+  return rows;
 }
 
 /**
  * Obtiene un médico por id.
  */
 async function obtenerMedicoPorId(id_medico) {
-  const pool = await poolPromise;
-  const request = pool.request();
-
-  request.input('id_medico', sql.Int, id_medico);
-
-  const result = await request.query(`
+  const sql = `
     SELECT
       id_medico,
       nombre,
@@ -38,11 +33,12 @@ async function obtenerMedicoPorId(id_medico) {
       especialidad,
       cedula_profesional,
       activo
-    FROM Medico
-    WHERE id_medico = @id_medico;
-  `);
+    FROM medico
+    WHERE id_medico = ?;
+  `;
 
-  return result.recordset[0] || null;
+  const [rows] = await pool.query(sql, [id_medico]);
+  return rows[0] || null;
 }
 
 /**
@@ -57,41 +53,31 @@ async function crearMedico(datos) {
     activo,
   } = datos;
 
-  const pool = await poolPromise;
-  const request = pool.request();
-
-  request.input('nombre', sql.NVarChar(80), nombre);
-  request.input('apellidos', sql.NVarChar(120), apellidos);
-  request.input('especialidad', sql.NVarChar(80), especialidad || null);
-  request.input(
-    'cedula_profesional',
-    sql.NVarChar(30),
-    cedula_profesional || null
-  );
-  request.input('activo', sql.Bit, activo ? 1 : 0);
-
-  const result = await request.query(`
-    INSERT INTO Medico (
+  // 1) Insertar
+  const insertSql = `
+    INSERT INTO medico (
       nombre,
       apellidos,
       especialidad,
       cedula_profesional,
       activo
     )
-    VALUES (@nombre, @apellidos, @especialidad, @cedula_profesional, @activo);
+    VALUES (?, ?, ?, ?, ?);
+  `;
 
-    SELECT
-      id_medico,
-      nombre,
-      apellidos,
-      especialidad,
-      cedula_profesional,
-      activo
-    FROM Medico
-    WHERE id_medico = SCOPE_IDENTITY();
-  `);
+  const insertParams = [
+    nombre,
+    apellidos,
+    especialidad || null,
+    cedula_profesional || null,
+    activo ? 1 : 0,
+  ];
 
-  return result.recordset[0] || null;
+  const [insertResult] = await pool.query(insertSql, insertParams);
+  const idGenerado = insertResult.insertId;
+
+  // 2) Volver a leer el registro completo
+  return obtenerMedicoPorId(idGenerado);
 }
 
 module.exports = {
@@ -99,4 +85,4 @@ module.exports = {
   obtenerMedicoPorId,
   crearMedico,
 };
-//fin del documento
+//fin del documento 

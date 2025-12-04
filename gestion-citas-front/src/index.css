@@ -1,4 +1,5 @@
-/* ================== Estilos generales ================== */
+/*src/index.css
+ ================== Estilos generales ================== */
 *,
 *::before,
 *::after {
@@ -286,3 +287,4 @@ body {
     justify-content: center;
   }
 }
+/*Fin del documento */

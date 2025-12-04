@@ -1,71 +1,41 @@
 // src/modules/pacientes/pacientes.repository.js
-const { sql, poolPromise } = require('../../db');
+const { pool } = require('../../config/db');
 
 /**
- * Listado paginado de pacientes con filtros por búsqueda y canal_preferente.
+ * Lista pacientes con filtros y paginación.
  */
 async function listarPacientes({ q, canalPreferente }, { page, pageSize }) {
-  const pool = await poolPromise;
-
-  const filtros = [];
-  const params = {};
-
-  if (q) {
-    filtros.push(
-      '(p.nombre LIKE @q OR p.apellidos LIKE @q OR p.email LIKE @q)'
-    );
-    params.q = `%${q}%`;
-  }
-
-  if (canalPreferente) {
-    filtros.push('p.canal_preferente = @canal_preferente');
-    params.canal_preferente = canalPreferente;
-  }
-
-  const whereClause =
-    filtros.length > 0 ? 'WHERE ' + filtros.join(' AND ') : '';
-
   const pageNumber = parseInt(page, 10) || 1;
   const sizeNumber = parseInt(pageSize, 10) || 20;
   const offset = (pageNumber - 1) * sizeNumber;
 
-  // ----- COUNT -----
-  const countReq = pool.request();
-  if (params.q) {
-    countReq.input('q', sql.NVarChar(255), params.q);
-  }
-  if (params.canal_preferente) {
-    countReq.input(
-      'canal_preferente',
-      sql.NVarChar(16),
-      params.canal_preferente
-    );
+  let where = 'WHERE 1=1';
+  const params = [];
+
+  if (q) {
+    // En MySQL normalmente el LIKE ya es case-insensitive según la collation
+    const pattern = `%${q}%`;
+    where +=
+      ' AND (p.nombre LIKE ? OR p.apellidos LIKE ? OR p.email LIKE ?)';
+    params.push(pattern, pattern, pattern);
   }
 
-  const countResult = await countReq.query(`
+  if (canalPreferente) {
+    where += ' AND p.canal_preferente = ?';
+    params.push(canalPreferente);
+  }
+
+  // 1) Conteo total
+  const countQuery = `
     SELECT COUNT(*) AS total
-    FROM Paciente p
-    ${whereClause};
-  `);
+    FROM paciente p
+    ${where};
+  `;
+  const [countRows] = await pool.query(countQuery, params);
+  const total = Number(countRows[0]?.total || 0);
 
-  const total = countResult.recordset[0]?.total || 0;
-
-  // ----- DATA -----
-  const dataReq = pool.request();
-  if (params.q) {
-    dataReq.input('q', sql.NVarChar(255), params.q);
-  }
-  if (params.canal_preferente) {
-    dataReq.input(
-      'canal_preferente',
-      sql.NVarChar(16),
-      params.canal_preferente
-    );
-  }
-  dataReq.input('pageSize', sql.Int, sizeNumber);
-  dataReq.input('offset', sql.Int, offset);
-
-  const dataResult = await dataReq.query(`
+  // 2) Datos paginados
+  const dataQuery = `
     SELECT
       p.id_paciente,
       p.nombre,
@@ -75,30 +45,31 @@ async function listarPacientes({ q, canalPreferente }, { page, pageSize }) {
       p.email,
       p.canal_preferente,
       p.fecha_registro
-    FROM Paciente p
-    ${whereClause}
+    FROM paciente p
+    ${where}
     ORDER BY p.fecha_registro DESC
-    OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY;
-  `);
+    LIMIT ? OFFSET ?;
+  `;
+
+  const [pacientes] = await pool.query(dataQuery, [
+    ...params,
+    sizeNumber,
+    offset,
+  ]);
 
   return {
     total,
     page: pageNumber,
     pageSize: sizeNumber,
-    pacientes: dataResult.recordset,
+    pacientes,
   };
 }
 
 /**
- * Obtiene el detalle de un paciente por id.
+ * Obtiene un paciente por ID.
  */
-async function obtenerPacientePorId(id) {
-  const pool = await poolPromise;
-  const request = pool.request();
-
-  request.input('id_paciente', sql.Int, id);
-
-  const result = await request.query(`
+async function obtenerPacientePorId(idPaciente) {
+  const query = `
     SELECT
       p.id_paciente,
       p.nombre,
@@ -108,15 +79,17 @@ async function obtenerPacientePorId(id) {
       p.email,
       p.canal_preferente,
       p.fecha_registro
-    FROM Paciente p
-    WHERE p.id_paciente = @id_paciente;
-  `);
+    FROM paciente p
+    WHERE p.id_paciente = ?;
+  `;
 
-  return result.recordset[0] || null;
+  const [rows] = await pool.query(query, [idPaciente]);
+  return rows[0] || null;
 }
 
 /**
- * Crea un nuevo paciente y devuelve el id generado.
+ * Crea un nuevo paciente.
+ * Devuelve el ID insertado.
  */
 async function crearPaciente({
   nombre,
@@ -126,18 +99,8 @@ async function crearPaciente({
   email,
   canal_preferente,
 }) {
-  const pool = await poolPromise;
-  const request = pool.request();
-
-  request.input('nombre', sql.NVarChar(100), nombre);
-  request.input('apellidos', sql.NVarChar(150), apellidos);
-  request.input('fecha_nacimiento', sql.Date, fecha_nacimiento || null);
-  request.input('telefono', sql.NVarChar(20), telefono || null);
-  request.input('email', sql.NVarChar(150), email || null);
-  request.input('canal_preferente', sql.NVarChar(16), canal_preferente || null);
-
-  const insertResult = await request.query(`
-    INSERT INTO Paciente (
+  const query = `
+    INSERT INTO paciente (
       nombre,
       apellidos,
       fecha_nacimiento,
@@ -145,83 +108,71 @@ async function crearPaciente({
       email,
       canal_preferente
     )
-    OUTPUT INSERTED.id_paciente
-    VALUES (
-      @nombre,
-      @apellidos,
-      @fecha_nacimiento,
-      @telefono,
-      @email,
-      @canal_preferente
-    );
-  `);
+    VALUES (?, ?, ?, ?, ?, ?);
+  `;
 
-  return insertResult.recordset[0].id_paciente;
+  const params = [
+    nombre,
+    apellidos,
+    fecha_nacimiento || null,
+    telefono || null,
+    email || null,
+    canal_preferente || null,
+  ];
+
+  const [result] = await pool.query(query, params);
+
+  return result.insertId; // id_paciente generado
 }
 
 /**
- * Actualiza parcialmente un paciente.
+ * Actualiza un paciente (solo campos enviados).
  * Devuelve el número de filas afectadas.
  */
-async function actualizarPaciente(id, campos) {
-  const pool = await poolPromise;
-  const request = pool.request();
-
-  request.input('id_paciente', sql.Int, id);
-
+async function actualizarPaciente(idPaciente, campos) {
   const sets = [];
+  const params = [];
 
-  if (Object.prototype.hasOwnProperty.call(campos, 'nombre')) {
-    sets.push('nombre = @nombre');
-    request.input('nombre', sql.NVarChar(100), campos.nombre);
+  if (campos.nombre !== undefined) {
+    sets.push('nombre = ?');
+    params.push(campos.nombre);
   }
-
-  if (Object.prototype.hasOwnProperty.call(campos, 'apellidos')) {
-    sets.push('apellidos = @apellidos');
-    request.input('apellidos', sql.NVarChar(150), campos.apellidos);
+  if (campos.apellidos !== undefined) {
+    sets.push('apellidos = ?');
+    params.push(campos.apellidos);
   }
-
-  if (Object.prototype.hasOwnProperty.call(campos, 'fecha_nacimiento')) {
-    sets.push('fecha_nacimiento = @fecha_nacimiento');
-    request.input(
-      'fecha_nacimiento',
-      sql.Date,
-      campos.fecha_nacimiento || null
-    );
+  if (campos.fecha_nacimiento !== undefined) {
+    sets.push('fecha_nacimiento = ?');
+    params.push(campos.fecha_nacimiento || null);
   }
-
-  if (Object.prototype.hasOwnProperty.call(campos, 'telefono')) {
-    sets.push('telefono = @telefono');
-    request.input('telefono', sql.NVarChar(20), campos.telefono || null);
+  if (campos.telefono !== undefined) {
+    sets.push('telefono = ?');
+    params.push(campos.telefono || null);
   }
-
-  if (Object.prototype.hasOwnProperty.call(campos, 'email')) {
-    sets.push('email = @email');
-    request.input('email', sql.NVarChar(150), campos.email || null);
+  if (campos.email !== undefined) {
+    sets.push('email = ?');
+    params.push(campos.email || null);
   }
-
-  if (Object.prototype.hasOwnProperty.call(campos, 'canal_preferente')) {
-    sets.push('canal_preferente = @canal_preferente');
-    request.input(
-      'canal_preferente',
-      sql.NVarChar(16),
-      campos.canal_preferente || null
-    );
+  if (campos.canal_preferente !== undefined) {
+    sets.push('canal_preferente = ?');
+    params.push(campos.canal_preferente || null);
   }
 
   if (sets.length === 0) {
-    // Que el service decida qué hacer con "0 campos"
+    // Nada que actualizar
     return 0;
   }
 
-  const updateSql = `
-    UPDATE Paciente
+  const query = `
+    UPDATE paciente
     SET ${sets.join(', ')}
-    WHERE id_paciente = @id_paciente;
+    WHERE id_paciente = ?;
   `;
 
-  const result = await request.query(updateSql);
-  return result.rowsAffected[0] || 0;
+  params.push(idPaciente);
+
+  const [result] = await pool.query(query, params);
+  return result.affectedRows || 0;
 }
 
 module.exports = {
@@ -230,4 +181,4 @@ module.exports = {
   crearPaciente,
   actualizarPaciente,
 };
-//fin del documento
+//fin del documento 

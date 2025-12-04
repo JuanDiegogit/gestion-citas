@@ -1,49 +1,40 @@
 // src/modules/citas/citas.repository.js
-const { sql, poolPromise } = require('../../db');
+const { pool } = require('../../config/db');
+
+// Si viene una conexión de transacción la usamos, si no, usamos el pool global
+function getConn(conn) {
+  return conn || pool;
+}
 
 /**
- * Inserta una cita usando una transacción existente.
- * Devuelve el id_cita generado.
+ * Crear una cita.
+ * Tabla `citas`:
+ *  - folio_cita, id_paciente, id_medico, id_tratamiento (NULL),
+ *  - fecha_cita, medio_solicitud, motivo_cita, info_relevante,
+ *  - observaciones, responsable_registro,
+ *  - estado_cita, estado_pago, monto_cobro
  */
-async function crearCita(datos, transaction) {
+async function crearCita(datos, conn) {
+  const db = getConn(conn);
+
   const {
     folio_cita,
     id_paciente,
     id_medico,
-    id_tratamiento,
+    id_tratamiento = null,
     fecha_cita,
     medio_solicitud,
-    motivo_cita,
-    info_relevante,
-    observaciones,
-    responsable_registro,
+    motivo_cita = null,
+    info_relevante = null,
+    observaciones = null,
+    responsable_registro = 'SISTEMA',
     estado_cita,
     estado_pago,
-    monto_cobro,
+    monto_cobro = null,
   } = datos;
 
-  const request = new sql.Request(transaction);
-
-  request.input('folio_cita', sql.NVarChar(20), folio_cita);
-  request.input('id_paciente', sql.Int, id_paciente);
-  request.input('id_medico', sql.Int, id_medico);
-  request.input('id_tratamiento', sql.Int, id_tratamiento || null);
-  request.input('fecha_cita', sql.DateTime2, fecha_cita);
-  request.input('medio_solicitud', sql.NVarChar(20), medio_solicitud);
-  request.input('motivo_cita', sql.NVarChar(200), motivo_cita || null);
-  request.input('info_relevante', sql.NVarChar(sql.MAX), info_relevante || null);
-  request.input('observaciones', sql.NVarChar(sql.MAX), observaciones || null);
-  request.input(
-    'responsable_registro',
-    sql.NVarChar(80),
-    responsable_registro || 'SISTEMA'
-  );
-  request.input('estado_cita', sql.NVarChar(20), estado_cita);
-  request.input('estado_pago', sql.NVarChar(20), estado_pago);
-  request.input('monto_cobro', sql.Decimal(10, 2), monto_cobro);
-
-  const query = `
-    INSERT INTO Cita (
+  const sql = `
+    INSERT INTO citas (
       folio_cita,
       id_paciente,
       id_medico,
@@ -58,163 +49,241 @@ async function crearCita(datos, transaction) {
       estado_pago,
       monto_cobro
     )
-    OUTPUT INSERTED.id_cita
-    VALUES (
-      @folio_cita,
-      @id_paciente,
-      @id_medico,
-      @id_tratamiento,
-      @fecha_cita,
-      @medio_solicitud,
-      @motivo_cita,
-      @info_relevante,
-      @observaciones,
-      @responsable_registro,
-      @estado_cita,
-      @estado_pago,
-      @monto_cobro
-    );
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
 
-  const result = await request.query(query);
-  return result.recordset[0].id_cita;
+  const params = [
+    folio_cita,
+    id_paciente,
+    id_medico,
+    id_tratamiento,
+    fecha_cita,
+    medio_solicitud,
+    motivo_cita,
+    info_relevante,
+    observaciones,
+    responsable_registro,
+    estado_cita,
+    estado_pago,
+    monto_cobro,
+  ];
+
+  const [result] = await db.query(sql, params);
+  return result.insertId; // id_cita
 }
 
 /**
- * Inserta un anticipo para una cita (si procede).
- * Devuelve el id_anticipo generado.
+ * Inserta un anticipo en `anticipo_cita`.
  */
-async function crearAnticipo(datos, transaction) {
-  const { id_cita, id_paciente, monto_anticipo } = datos;
+async function crearAnticipo(
+  { id_cita, id_paciente, monto_anticipo, estado = 'PENDIENTE', id_pago_caja = null },
+  conn
+) {
+  const db = getConn(conn);
 
-  const request = new sql.Request(transaction);
-
-  request.input('id_cita', sql.Int, id_cita);
-  request.input('id_paciente', sql.Int, id_paciente);
-  request.input('monto_anticipo', sql.Decimal(10, 2), monto_anticipo);
-  request.input('estado', sql.NVarChar(20), 'PENDIENTE');
-
-  const query = `
-    INSERT INTO AnticipoCita (
+  const sql = `
+    INSERT INTO anticipo_cita (
       id_cita,
       id_paciente,
       monto_anticipo,
       estado,
+      id_pago_caja,
       fecha_solicitud
     )
-    OUTPUT INSERTED.id_anticipo
-    VALUES (
-      @id_cita,
-      @id_paciente,
-      @monto_anticipo,
-      @estado,
-      SYSDATETIME()
-    );
+    VALUES (?, ?, ?, ?, ?, NOW())
   `;
 
-  const result = await request.query(query);
-  return result.recordset[0].id_anticipo;
+  const params = [
+    id_cita,
+    id_paciente,
+    monto_anticipo,
+    estado,
+    id_pago_caja,
+  ];
+
+  const [result] = await db.query(sql, params);
+  return result.insertId; // id_anticipo
 }
 
 /**
- * Devuelve el anticipo pendiente (TOP 1) para una cita dentro de una transacción.
- */
-async function obtenerAnticipoPendientePorCita(id_cita, transaction) {
-  const request = new sql.Request(transaction);
-  request.input('id_cita', sql.Int, id_cita);
-
-  const result = await request.query(`
-    SELECT TOP 1
-      id_anticipo,
-      id_cita,
-      id_paciente,
-      monto_anticipo,
-      estado
-    FROM AnticipoCita
-    WHERE id_cita = @id_cita
-      AND estado = 'PENDIENTE'
-    ORDER BY id_anticipo DESC;
-  `);
-
-  return result.recordset[0] || null;
-}
-
-/**
- * Marca un anticipo como PAGADO.
- */
-async function actualizarAnticipoComoPagado(id_anticipo, id_pago_caja, transaction) {
-  const request = new sql.Request(transaction);
-  request.input('id_anticipo', sql.Int, id_anticipo);
-  request.input('id_pago_caja', sql.NVarChar(50), String(id_pago_caja));
-
-  await request.query(`
-    UPDATE AnticipoCita
-    SET estado = 'PAGADO',
-        id_pago_caja = @id_pago_caja,
-        fecha_confirmacion = SYSDATETIME()
-    WHERE id_anticipo = @id_anticipo;
-  `);
-}
-
-/**
- * Marca una cita como PAGADO y limpia el saldo.
- */
-async function actualizarCitaComoPagada({ id_cita, id_pago_caja, monto_pagado }, transaction) {
-  const request = new sql.Request(transaction);
-  request.input('id_cita', sql.Int, id_cita);
-  request.input('id_pago_caja', sql.NVarChar(50), String(id_pago_caja));
-
-  if (monto_pagado != null) {
-    request.input('monto_pagado', sql.Decimal(10, 2), monto_pagado);
-  }
-
-  const query = `
-    UPDATE Cita
-    SET estado_pago   = 'PAGADO',
-        id_pago_caja  = @id_pago_caja,
-        saldo_paciente = 0
-        ${monto_pagado != null ? ', monto_pagado = @monto_pagado' : ''}
-    WHERE id_cita = @id_cita;
-  `;
-
-  await request.query(query);
-}
-
-/**
- * Listado general de citas con filtros (equivalente a GET /citas original).
+ * Listado general de citas SIN paginación, con filtros básicos.
  */
 async function listarCitas({ fechaDesde, fechaHasta, estadoCita, idPaciente, idMedico }) {
-  const pool = await poolPromise;
-  const request = pool.request();
+  const db = getConn();
 
-  let where = 'WHERE 1=1';
+  const where = [];
+  const params = [];
 
   if (fechaDesde) {
-    request.input('fecha_desde', sql.DateTime2, fechaDesde);
-    where += ' AND c.fecha_cita >= @fecha_desde';
+    where.push('c.fecha_cita >= ?');
+    params.push(fechaDesde);
   }
-
   if (fechaHasta) {
-    request.input('fecha_hasta', sql.DateTime2, fechaHasta);
-    where += ' AND c.fecha_cita <= @fecha_hasta';
+    where.push('c.fecha_cita <= ?');
+    params.push(fechaHasta);
   }
-
   if (estadoCita) {
-    request.input('estado_cita', sql.NVarChar(20), estadoCita);
-    where += ' AND c.estado_cita = @estado_cita';
+    where.push('c.estado_cita = ?');
+    params.push(estadoCita);
+  }
+  if (idPaciente) {
+    where.push('c.id_paciente = ?');
+    params.push(idPaciente);
+  }
+  if (idMedico) {
+    where.push('c.id_medico = ?');
+    params.push(idMedico);
   }
 
-  if (typeof idPaciente === 'number') {
-    request.input('id_paciente', sql.Int, idPaciente);
-    where += ' AND c.id_paciente = @id_paciente';
+  const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+  const sql = `
+    SELECT
+      c.id_cita,
+      c.folio_cita,
+      c.fecha_cita,
+      c.estado_cita,
+      c.estado_pago,
+      c.monto_cobro,
+      p.id_paciente,
+      p.nombre    AS nombre_paciente,
+      p.apellidos AS apellidos_paciente,
+      m.id_medico,
+      m.nombre    AS nombre_medico,
+      m.apellidos AS apellidos_medico
+    FROM citas c
+    INNER JOIN paciente p ON p.id_paciente = c.id_paciente
+    INNER JOIN medico   m ON m.id_medico   = c.id_medico
+    ${whereSql}
+    ORDER BY c.fecha_cita DESC
+  `;
+
+  const [rows] = await db.query(sql, params);
+  return rows;
+}
+
+/**
+ * Listado RESUMEN con paginación.
+ */
+async function listarResumenCitas(filtros, paginacion) {
+  const db = getConn();
+
+  const {
+    idPaciente,
+    idMedico,
+    estadoCita,
+    estadoPago,
+    fechaDesde,
+    fechaHasta,
+  } = filtros;
+
+  const page = parseInt(paginacion.page, 10) || 1;
+  const pageSize = parseInt(paginacion.pageSize, 10) || 20;
+  const offset = (page - 1) * pageSize;
+
+  const where = [];
+  const params = [];
+
+  if (idPaciente) {
+    where.push('c.id_paciente = ?');
+    params.push(idPaciente);
+  }
+  if (idMedico) {
+    where.push('c.id_medico = ?');
+    params.push(idMedico);
+  }
+  if (estadoCita) {
+    where.push('c.estado_cita = ?');
+    params.push(estadoCita);
+  }
+  if (estadoPago) {
+    where.push('c.estado_pago = ?');
+    params.push(estadoPago);
+  }
+  if (fechaDesde) {
+    where.push('c.fecha_cita >= ?');
+    params.push(fechaDesde);
+  }
+  if (fechaHasta) {
+    where.push('c.fecha_cita <= ?');
+    params.push(fechaHasta);
   }
 
-  if (typeof idMedico === 'number') {
-    request.input('id_medico', sql.Int, idMedico);
-    where += ' AND c.id_medico = @id_medico';
-  }
+  const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
-  const query = `
+  const baseFrom = `
+    FROM citas c
+    INNER JOIN paciente p ON p.id_paciente = c.id_paciente
+    INNER JOIN medico   m ON m.id_medico   = c.id_medico
+    ${whereSql}
+  `;
+
+  const [rows] = await db.query(
+    `
+    SELECT
+      c.id_cita,
+      c.folio_cita,
+      c.fecha_cita,
+      c.estado_cita,
+      c.estado_pago,
+      c.monto_cobro,
+      p.nombre    AS nombre_paciente,
+      p.apellidos AS apellidos_paciente,
+      m.nombre    AS nombre_medico,
+      m.apellidos AS apellidos_medico
+    ${baseFrom}
+    ORDER BY c.fecha_cita DESC
+    LIMIT ? OFFSET ?
+  `,
+    [...params, pageSize, offset]
+  );
+
+  const [[countRow]] = await db.query(
+    `
+    SELECT COUNT(*) AS total
+    ${baseFrom}
+  `,
+    params
+  );
+
+  const total = Number(countRow.total || 0);
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  return {
+    data: rows,
+    pagination: {
+      page,
+      pageSize,
+      total,
+      totalPages,
+    },
+  };
+}
+
+/**
+ * Actualiza el estado de la cita (PROGRAMADA / CONFIRMADA / CANCELADA / ATENDIDA).
+ */
+async function actualizarEstadoCita(id_cita, nuevoEstado, conn) {
+  const db = getConn(conn);
+
+  const sql = `
+    UPDATE citas
+    SET estado_cita = ?
+    WHERE id_cita = ?
+  `;
+
+  const [result] = await db.query(sql, [nuevoEstado, id_cita]);
+  return result.affectedRows > 0;
+}
+
+/**
+ * Cita básica para flujo de cobro.
+ * Devuelve al menos: id_cita, id_paciente, monto_cobro, estado_pago.
+ */
+async function obtenerCitaPorId(id_cita, conn) {
+  const db = getConn(conn);
+
+  const sql = `
     SELECT
       c.id_cita,
       c.folio_cita,
@@ -223,214 +292,101 @@ async function listarCitas({ fechaDesde, fechaHasta, estadoCita, idPaciente, idM
       c.estado_pago,
       c.monto_cobro,
       c.id_paciente,
-      p.nombre    AS nombre_paciente,
-      p.apellidos AS apellidos_paciente,
-      c.id_medico,
-      m.nombre    AS nombre_medico,
-      m.apellidos AS apellidos_medico
-    FROM Cita c
-    INNER JOIN Paciente p ON p.id_paciente = c.id_paciente
-    INNER JOIN Medico   m ON m.id_medico   = c.id_medico
-    ${where}
-    ORDER BY c.fecha_cita DESC;
+      c.id_medico
+    FROM citas c
+    WHERE c.id_cita = ?
   `;
 
-  const result = await request.query(query);
-  return result.recordset;
+  const [rows] = await db.query(sql, [id_cita]);
+  return rows[0] || null;
 }
 
 /**
- * Listado resumido de citas con paginación (GET /citas/resumen).
+ * Anticipo pendiente para una cita (si existe).
  */
-async function listarResumenCitas(
-  { idPaciente, idMedico, estadoCita, estadoPago, fechaDesde, fechaHasta },
-  { page, pageSize }
-) {
-  const pool = await poolPromise;
+async function obtenerAnticipoPendientePorCita(id_cita, conn) {
+  const db = getConn(conn);
 
-  const whereClauses = [];
-  const params = {};
-
-  if (idPaciente) {
-    whereClauses.push('c.id_paciente = @id_paciente');
-    params.id_paciente = idPaciente;
-  }
-
-  if (idMedico) {
-    whereClauses.push('c.id_medico = @id_medico');
-    params.id_medico = idMedico;
-  }
-
-  if (estadoCita) {
-    whereClauses.push('c.estado_cita = @estado_cita');
-    params.estado_cita = estadoCita;
-  }
-
-  if (estadoPago) {
-    whereClauses.push('c.estado_pago = @estado_pago');
-    params.estado_pago = estadoPago;
-  }
-
-  if (fechaDesde) {
-    whereClauses.push('c.fecha_cita >= @fecha_desde');
-    params.fecha_desde = fechaDesde;
-  }
-
-  if (fechaHasta) {
-    whereClauses.push('c.fecha_cita <= @fecha_hasta');
-    params.fecha_hasta = fechaHasta;
-  }
-
-  const whereSql =
-    whereClauses.length > 0 ? 'WHERE ' + whereClauses.join(' AND ') : '';
-
-  const pageNumber = Number.isInteger(page) ? page : parseInt(page, 10) || 1;
-  const sizeNumber = Number.isInteger(pageSize)
-    ? pageSize
-    : parseInt(pageSize, 10) || 20;
-  const offset = (pageNumber - 1) * sizeNumber;
-
-  // ---- Query de conteo total ----
-  const countRequest = pool.request();
-  Object.entries(params).forEach(([key, value]) => {
-    if (key === 'id_paciente' || key === 'id_medico') {
-      countRequest.input(key, sql.Int, value);
-    } else if (key === 'estado_cita' || key === 'estado_pago') {
-      countRequest.input(key, sql.NVarChar(20), value);
-    } else if (key === 'fecha_desde' || key === 'fecha_hasta') {
-      countRequest.input(key, sql.DateTime2, value);
-    }
-  });
-
-  const countQuery = `
-    SELECT COUNT(*) AS total
-    FROM Cita c
-    INNER JOIN Paciente p ON p.id_paciente = c.id_paciente
-    ${whereSql};
-  `;
-
-  const countResult = await countRequest.query(countQuery);
-  const total = countResult.recordset[0]?.total || 0;
-
-  // ---- Query de datos paginados ----
-  const dataRequest = pool.request();
-
-  // Parámetros compartidos
-  Object.entries(params).forEach(([key, value]) => {
-    if (key === 'id_paciente' || key === 'id_medico') {
-      dataRequest.input(key, sql.Int, value);
-    } else if (key === 'estado_cita' || key === 'estado_pago') {
-      dataRequest.input(key, sql.NVarChar(20), value);
-    } else if (key === 'fecha_desde' || key === 'fecha_hasta') {
-      dataRequest.input(key, sql.DateTime2, value);
-    }
-  });
-
-  dataRequest.input('offset', sql.Int, offset);
-  dataRequest.input('pageSize', sql.Int, sizeNumber);
-
-  const dataQuery = `
-  SELECT
-    c.id_cita,
-    c.folio_cita,
-    c.fecha_cita,
-    c.estado_cita,
-    c.estado_pago,
-    c.monto_cobro,
-    ISNULL(c.saldo_paciente, 0) AS saldo_paciente,
-
-    c.id_paciente,
-    p.nombre    AS paciente_nombre,
-    p.apellidos AS paciente_apellidos,
-
-    c.id_medico,
-    m.nombre    AS medico_nombre,
-    m.apellidos AS medico_apellidos,
-
-    -- si hay anticipo pendiente, marcamos 1
-    CASE WHEN a.id_anticipo IS NOT NULL THEN 1 ELSE 0 END AS tiene_anticipo
-  FROM Cita c
-  INNER JOIN Paciente p ON p.id_paciente = c.id_paciente
-  INNER JOIN Medico m   ON m.id_medico   = c.id_medico
-  LEFT JOIN AnticipoCita a
-    ON a.id_cita = c.id_cita
-   AND a.estado = 'PENDIENTE'
-  ${whereSql}
-  ORDER BY c.fecha_cita DESC, c.id_cita DESC
-  OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY;
-`;
-
-
-  const dataResult = await dataRequest.query(dataQuery);
-
-  return {
-    data: dataResult.recordset,
-    pagination: {
-      page: pageNumber,
-      pageSize: sizeNumber,
-      total,
-      totalPages: sizeNumber > 0 ? Math.ceil(total / sizeNumber) : 0,
-    },
-  };
-}
-
-async function actualizarEstadoCita(id_cita, nuevoEstado) {
-  const pool = await poolPromise;
-  const request = pool.request();
-
-  request.input('id_cita', sql.Int, id_cita);
-  request.input('estado_cita', sql.NVarChar(20), nuevoEstado);
-
-  const query = `
-    UPDATE Cita
-    SET estado_cita = @estado_cita
-    WHERE id_cita = @id_cita;
-
+  const sql = `
     SELECT
-      id_cita,
-      folio_cita,
-      fecha_cita,
-      estado_cita,
-      estado_pago,
-      monto_cobro,
-      ISNULL(saldo_paciente, 0) AS saldo_paciente
-    FROM Cita
-    WHERE id_cita = @id_cita;
+      a.*
+    FROM anticipo_cita a
+    WHERE a.id_cita = ?
+      AND a.estado = 'PENDIENTE'
+    ORDER BY a.fecha_solicitud DESC
+    LIMIT 1
   `;
 
-  const result = await request.query(query);
-  return result.recordset[0] || null;
-}
-async function obtenerCitaPorId(idCita) {
-  const pool = await poolPromise;
-  const request = pool.request();
-
-  request.input('id_cita', sql.Int, idCita);
-
-  const result = await request.query(`
-    SELECT c.id_cita,
-           c.id_paciente,
-           c.id_medico,
-           c.monto_cobro,
-           c.estado_pago,
-           c.folio_cita
-    FROM Cita c
-    WHERE c.id_cita = @id_cita
-  `);
-
-  return result.recordset[0] || null;
+  const [rows] = await db.query(sql, [id_cita]);
+  return rows[0] || null;
 }
 
+/**
+ * Marca un anticipo como pagado.
+ */
+async function actualizarAnticipoComoPagado(id_anticipo, id_pago_caja, conn) {
+  const db = getConn(conn);
+
+  const sql = `
+    UPDATE anticipo_cita
+    SET estado = 'PAGADO',
+        id_pago_caja = ?,
+        fecha_confirmacion = NOW()
+    WHERE id_anticipo = ?
+  `;
+
+  const [result] = await db.query(sql, [id_pago_caja, id_anticipo]);
+  return result.affectedRows > 0;
+}
+
+/**
+ * Marca la cita como pagada.
+ * Actualiza estado_pago, id_pago_caja y opcionalmente monto_pagado.
+ */
+async function actualizarCitaComoPagada(
+  { id_cita, id_pago_caja, monto_pagado = null },
+  conn
+) {
+  const db = getConn(conn);
+
+  const sql = `
+    UPDATE citas
+    SET estado_pago = 'PAGADO',
+        id_pago_caja = ?,
+        monto_pagado = ?
+    WHERE id_cita = ?
+  `;
+
+  const [result] = await db.query(sql, [id_pago_caja, monto_pagado, id_cita]);
+  return result.affectedRows > 0;
+}
+
+/**
+ * Obtener anticipo por id (utilidad por si la quieres luego).
+ */
+async function obtenerAnticipoPorId(id_anticipo, conn) {
+  const db = getConn(conn);
+
+  const sql = `
+    SELECT *
+    FROM anticipo_cita
+    WHERE id_anticipo = ?
+  `;
+
+  const [rows] = await db.query(sql, [id_anticipo]);
+  return rows[0] || null;
+}
 
 module.exports = {
   crearCita,
   crearAnticipo,
-  obtenerAnticipoPendientePorCita,
-  actualizarAnticipoComoPagado,
-  actualizarCitaComoPagada,
   listarCitas,
   listarResumenCitas,
   actualizarEstadoCita,
   obtenerCitaPorId,
+  obtenerAnticipoPendientePorCita,
+  actualizarAnticipoComoPagado,
+  actualizarCitaComoPagada,
+  obtenerAnticipoPorId,
 };
 //fin del documento

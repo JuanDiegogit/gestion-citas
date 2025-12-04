@@ -5,8 +5,12 @@ const tratamientosRepository = require('./tratamientos.repository');
  * Lista de tratamientos.
  */
 async function listarTratamientos() {
-  const tratamientos = await tratamientosRepository.listarTratamientos();
-  return tratamientos;
+  // Si en algún momento quieres filtros/paginación,
+  // aquí se los pasas al repo.
+  const resultado = await tratamientosRepository.listarTratamientos();
+  // Para mantener compatibilidad con tu controller,
+  // devolvemos solo el array cuando no hace falta paginación.
+  return resultado.data || resultado;
 }
 
 /**
@@ -57,10 +61,16 @@ async function crearTratamiento(payload) {
   }
 
   let parsedDuracion = null;
-  if (duracion_min !== undefined && duracion_min !== null && duracion_min !== '') {
+  if (
+    duracion_min !== undefined &&
+    duracion_min !== null &&
+    duracion_min !== ''
+  ) {
     const val = parseInt(duracion_min, 10);
     if (Number.isNaN(val) || val < 0) {
-      const err = new Error('duracion_min debe ser un entero mayor o igual a 0');
+      const err = new Error(
+        'duracion_min debe ser un entero mayor o igual a 0'
+      );
       err.statusCode = 400;
       throw err;
     }
