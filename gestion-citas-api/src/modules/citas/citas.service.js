@@ -87,7 +87,7 @@ async function crearCita(payload) {
     }
   }
 
-    const fechaCitaStr = normalizarFechaCita(fecha_cita);
+      const fechaCitaStr = normalizarFechaCita(fecha_cita);
 
   if (!fechaCitaStr) {
     const error = new Error('fecha_cita no tiene un formato de fecha válido');
@@ -95,6 +95,43 @@ async function crearCita(payload) {
     throw error;
   }
 
+  // ─────────────────────────────────────────────
+  //  REGLAS DE NEGOCIO SOBRE CHOQUE DE HORARIOS
+  // ─────────────────────────────────────────────
+  const MIN_GAP_MINUTES = 120; // 2 horas
+
+  // 1) El médico no puede tener otra cita en ±2 horas
+  const conflictoMedico = await citasRepository.existeCitaEnRangoParaMedico(
+    id_medico,
+    fechaCitaStr,
+    MIN_GAP_MINUTES,
+    MIN_GAP_MINUTES
+  );
+
+  if (conflictoMedico) {
+    const error = new Error(
+      'El médico ya tiene una cita programada en un rango de 2 horas respecto a la fecha y hora seleccionadas.'
+    );
+    error.statusCode = 409; // conflicto
+    throw error;
+  }
+
+  // 2) El paciente no puede tener otra cita exactamente a la misma hora
+  const conflictoPaciente =
+    await citasRepository.existeCitaMismaFechaParaPaciente(
+      id_paciente,
+      fechaCitaStr
+    );
+
+  if (conflictoPaciente) {
+    const error = new Error(
+      'El paciente ya tiene una cita registrada exactamente en esa fecha y hora.'
+    );
+    error.statusCode = 409;
+    throw error;
+  }
+
+  // A partir de aquí sigue igual tu lógica de transacción
   const folio = generarFolioCita();
 
   const estadoCita = 'PROGRAMADA';
@@ -108,7 +145,7 @@ async function crearCita(payload) {
         id_paciente,
         id_medico,
         id_tratamiento: id_tratamiento || null,
-        fecha_cita: fechaCitaStr,  
+        fecha_cita: fechaCitaStr,
         medio_solicitud,
         motivo_cita,
         info_relevante,

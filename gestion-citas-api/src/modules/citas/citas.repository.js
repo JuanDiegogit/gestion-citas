@@ -377,6 +377,65 @@ async function obtenerAnticipoPorId(id_anticipo, conn) {
   return rows[0] || null;
 }
 
+/**
+ * Verifica si el médico ya tiene una cita en un rango de tiempo alrededor
+ * de la fecha/hora indicada.
+ *
+ * fechaCitaStr debe ser 'YYYY-MM-DD HH:MM:SS'
+ * minutosAntes / minutosDespues definen la ventana.
+ */
+async function existeCitaEnRangoParaMedico(
+  id_medico,
+  fechaCitaStr,
+  minutosAntes,
+  minutosDespues,
+  conn
+) {
+  const db = getConn(conn);
+
+  const sql = `
+    SELECT COUNT(*) AS total
+    FROM citas
+    WHERE id_medico = ?
+      AND estado_cita <> 'CANCELADA'
+      AND fecha_cita BETWEEN DATE_SUB(?, INTERVAL ? MINUTE)
+                         AND DATE_ADD(?, INTERVAL ? MINUTE)
+  `;
+
+  const [rows] = await db.query(sql, [
+    id_medico,
+    fechaCitaStr,
+    minutosAntes,
+    fechaCitaStr,
+    minutosDespues,
+  ]);
+
+  return Number(rows[0]?.total || 0) > 0;
+}
+
+/**
+ * Verifica si el paciente ya tiene una cita exactamente en esa fecha/hora.
+ */
+async function existeCitaMismaFechaParaPaciente(
+  id_paciente,
+  fechaCitaStr,
+  conn
+) {
+  const db = getConn(conn);
+
+  const sql = `
+    SELECT COUNT(*) AS total
+    FROM citas
+    WHERE id_paciente = ?
+      AND estado_cita <> 'CANCELADA'
+      AND fecha_cita = ?
+  `;
+
+  const [rows] = await db.query(sql, [id_paciente, fechaCitaStr]);
+  return Number(rows[0]?.total || 0) > 0;
+}
+
+
 module.exports = {
   crearCita,
   crearAnticipo,
@@ -388,5 +447,7 @@ module.exports = {
   actualizarAnticipoComoPagado,
   actualizarCitaComoPagada,
   obtenerAnticipoPorId,
+  existeCitaEnRangoParaMedico,
+  existeCitaMismaFechaParaPaciente,
 };
 //fin del documento
