@@ -99,23 +99,23 @@ async function sincronizarPaciente(paciente) {
 async function sincronizarTratamiento(tratamiento) {
   if (!ATENCION_CLINICA_TRATAMIENTOS_URL) {
     console.warn(
-      '[ATENCION_CLINICA] ATENCION_CLINICA_TRATAMIENTOS_URL no está configurada; no se sincronizará el tratamiento.'
+      '[ATENCION_CLINICA] ATENCION_CLINICA_TRATAMIENTOS_URL no configurada, no se sincroniza tratamiento'
     );
     return;
   }
 
-  if (!tratamiento || !tratamiento.nombre) {
-    console.warn(
-      '[ATENCION_CLINICA] Datos insuficientes para sincronizar tratamiento:',
-      tratamiento
-    );
-    return;
-  }
+  const payload = {
+    tratamientos: [
+      {
+        ...tratamiento,   // incluye cve_trat, nombre, descripcion, precio_base, activo, etc.
+      },
+    ],
+  };
 
   return safePost(
     ATENCION_CLINICA_TRATAMIENTOS_URL,
-    tratamiento,
-    'ATENCION_CLINICA_SINCRONIZAR_TRATAMIENTO'
+    payload,
+    'ATENCION_CLINICA_TRATAMIENTOS'
   );
 }
 module.exports = {

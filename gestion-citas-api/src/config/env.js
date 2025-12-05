@@ -14,7 +14,6 @@ const ATENCION_CLINICA_PACIENTES_URL =
   process.env.ATENCION_CLINICA_PACIENTES_URL ||
   'http://apiatencionclinica.rtakabinetsolutions.com/api/atencion/pacientes/sincronizar';
 
-// 🔹 NUEVO: URL para integración de tratamientos
 const ATENCION_CLINICA_TRATAMIENTOS_URL =
   process.env.ATENCION_CLINICA_TRATAMIENTOS_URL ||
   'http://apiatencionclinica.rtakabinetsolutions.com/api/atencion/integracion/tratamientos';
