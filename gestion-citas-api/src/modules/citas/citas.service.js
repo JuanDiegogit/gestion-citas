@@ -87,8 +87,9 @@ async function crearCita(payload) {
     }
   }
 
-  const fechaCitaDate = new Date(fecha_cita);
-  if (Number.isNaN(fechaCitaDate.getTime())) {
+    const fechaCitaStr = normalizarFechaCita(fecha_cita);
+
+  if (!fechaCitaStr) {
     const error = new Error('fecha_cita no tiene un formato de fecha válido');
     error.statusCode = 400;
     throw error;
@@ -107,7 +108,7 @@ async function crearCita(payload) {
         id_paciente,
         id_medico,
         id_tratamiento: id_tratamiento || null,
-        fecha_cita: fechaCitaDate,
+        fecha_cita: fechaCitaStr,  
         medio_solicitud,
         motivo_cita,
         info_relevante,
@@ -138,14 +139,14 @@ async function crearCita(payload) {
   });
 
   // Notificación a Atención Clínica (best-effort, fuera de la transacción)
-  try {
+ try {
     await atencionClinicaClient.notificarNuevaCita({
       id_cita,
       folio_cita: folio,
       id_paciente,
       id_medico,
       id_tratamiento: id_tratamiento || null,
-      fecha_cita: fechaCitaDate,
+      fecha_cita: fechaCitaStr,
       medio_solicitud,
       motivo_cita: motivo_cita || null,
       info_relevante: info_relevante || null,
@@ -537,6 +538,33 @@ async function registrarPagoAnticipoEnCaja(idCita) {
       : 'Cobro enviado a Caja correctamente',
     caja: resultadoCaja,
   };
+}
+// Normaliza la fecha/hora que viene del front (datetime-local)
+// a un string 'YYYY-MM-DD HH:MM:SS' sin tocar timezones.
+function normalizarFechaCita(fecha_cita) {
+  if (!fecha_cita) return null;
+
+  if (typeof fecha_cita === 'string') {
+    let f = fecha_cita.trim();
+    if (!f) return null;
+
+    // Aceptar tanto "2025-12-05T16:00" como "2025-12-05 16:00"
+    f = f.replace('T', ' ');
+
+    // Si viene sin segundos, se los agregamos
+    if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(f)) {
+      f = `${f}:00`;
+    }
+
+    // Validación mínima de formato final
+    if (!/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(f)) {
+      return null;
+    }
+
+    return f;
+  }
+
+  return null;
 }
 
 module.exports = {
