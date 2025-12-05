@@ -43,6 +43,10 @@ export async function confirmarPago(idCita, idPagoCaja) {
   return data;
 }
 
+export async function obtenerSaldoPacienteCaja(idPaciente) {
+  const { data } = await api.get(`/pacientes/${idPaciente}/saldo-caja`);
+  return data;
+}
 
 // --- PACIENTES ---
 export async function getPacientes(params = {}) {
