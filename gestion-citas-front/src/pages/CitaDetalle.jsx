@@ -6,7 +6,7 @@ import {
   iniciarAtencion,
   marcarAtendida,
   confirmarPago,
-  obtenerSaldoPacienteCaja,
+  obtenerSaldoPacienteCaja
 } from '../api/citasApi';
 
 function CitaDetalle() {
