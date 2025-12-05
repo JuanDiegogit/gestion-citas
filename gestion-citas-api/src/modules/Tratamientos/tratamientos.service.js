@@ -1,5 +1,6 @@
 // src/modules/tratamientos/tratamientos.service.js
 const tratamientosRepository = require('./tratamientos.repository');
+const atencionClinicaClient = require('../../integrations/atencionClinica.client');
 
 /**
  * Lista de tratamientos.
@@ -84,7 +85,38 @@ async function crearTratamiento(payload) {
     precio_base: parsedPrecio,
     duracion_min: parsedDuracion,
     activo: typeof activo === 'boolean' ? activo : true,
-  });
+  })
+  try {
+    if (
+      atencionClinicaClient &&
+      typeof atencionClinicaClient.sincronizarTratamiento === 'function'
+    ) {
+      await atencionClinicaClient.sincronizarTratamiento({
+        id_tratamiento: tratamiento.id_tratamiento,
+        cve_trat: tratamiento.cve_trat,
+        nombre: tratamiento.nombre,
+        descripcion: tratamiento.descripcion,
+        precio_base: tratamiento.precio_base,
+        duracion_min: tratamiento.duracion_min,
+        activo: tratamiento.activo,
+      });
+
+      console.log('[SIGCD] Tratamiento sincronizado con ATENCIÓN CLÍNICA');
+    } else {
+      console.warn(
+        '[SIGCD] atencionClinicaClient.sincronizarTratamiento no está definido (no se sincroniza tratamiento)'
+      );
+    }
+  } catch (syncErr) {
+    console.error(
+      '[SIGCD] Error al sincronizar tratamiento con ATENCIÓN CLÍNICA:',
+      syncErr.cause?.response?.data ||
+        syncErr.response?.data ||
+        syncErr.message ||
+        syncErr
+    );
+    // Best-effort: no rompemos la creación del tratamiento
+  }
 
   return tratamiento;
 }

@@ -189,7 +189,7 @@ function CitaDetalle() {
         <p>Sin anticipo registrado para esta cita.</p>
       )}
 
-      {/* 👇 Bloque de saldo en tiempo real */}
+      {/* Bloque de saldo en tiempo real */}
       <div style={{ marginTop: '0.75rem' }}>
         <button
           type="button"

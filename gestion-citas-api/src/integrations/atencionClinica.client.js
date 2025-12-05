@@ -3,6 +3,7 @@ const axios = require('axios');
 const {
   ATENCION_CLINICA_URL,
   ATENCION_CLINICA_PACIENTES_URL,
+  ATENCION_CLINICA_TRATAMIENTOS_URL,
 } = require('../config/env');
 
 /*
@@ -81,9 +82,45 @@ async function sincronizarPaciente(paciente) {
     'ATENCION_CLINICA_SINCRONIZAR_PACIENTE'
   );
 }
+/*
+  Sincroniza datos de un tratamiento con la API de Atención Clínica.
+  (mismo patrón "best-effort" que paciente)
+  payload sugerido:
+  {
+    id_tratamiento,
+    cve_trat,
+    nombre,
+    descripcion,
+    precio_base,
+    duracion_min,
+    activo
+  }
+*/
+async function sincronizarTratamiento(tratamiento) {
+  if (!ATENCION_CLINICA_TRATAMIENTOS_URL) {
+    console.warn(
+      '[ATENCION_CLINICA] ATENCION_CLINICA_TRATAMIENTOS_URL no está configurada; no se sincronizará el tratamiento.'
+    );
+    return;
+  }
 
+  if (!tratamiento || !tratamiento.nombre) {
+    console.warn(
+      '[ATENCION_CLINICA] Datos insuficientes para sincronizar tratamiento:',
+      tratamiento
+    );
+    return;
+  }
+
+  return safePost(
+    ATENCION_CLINICA_TRATAMIENTOS_URL,
+    tratamiento,
+    'ATENCION_CLINICA_SINCRONIZAR_TRATAMIENTO'
+  );
+}
 module.exports = {
   notificarNuevaCita,
   sincronizarPaciente,
+  sincronizarTratamiento,
 };
 //fin del documento
