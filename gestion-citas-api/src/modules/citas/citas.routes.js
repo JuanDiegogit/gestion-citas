@@ -38,6 +38,8 @@ router.post(
   '/:id_cita/registrar-pago-anticipo-caja',
   citasController.registrarPagoAnticipoEnCaja
 );
+// POST /citas/:id/pagos
+router.post('/:id/pagos', citasController.registrarPagoParcial);
 
 module.exports = router;
 //fin del documento

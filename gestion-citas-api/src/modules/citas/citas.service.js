@@ -603,6 +603,88 @@ function normalizarFechaCita(fecha_cita) {
 
   return null;
 }
+async function registrarPagoParcial(idCitaRaw, payload) {
+  const { monto, id_pago_caja, origen = 'CAJA', observaciones } = payload || {};
+
+  if (!/^\d+$/.test(String(idCitaRaw))) {
+    const err = new Error('El id de la cita debe ser un entero positivo');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const idCita = parseInt(idCitaRaw, 10);
+
+  const montoNum = Number(monto);
+  if (!monto || Number.isNaN(montoNum) || montoNum <= 0) {
+    const err = new Error('monto debe ser un número mayor que 0');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  return withTransaction(async (conn) => {
+    // 1) Leer cita actual
+    const cita = await citasRepository.obtenerCitaPorId(idCita, conn);
+
+    if (!cita) {
+      const err = new Error('Cita no encontrada');
+      err.statusCode = 404;
+      throw err;
+    }
+
+    if (!cita.monto_cobro || Number(cita.monto_cobro) <= 0) {
+      const err = new Error('La cita no tiene monto_cobro configurado');
+      err.statusCode = 400;
+      throw err;
+    }
+
+    const montoCobro = Number(cita.monto_cobro);
+    const montoPagadoActual = Number(cita.monto_pagado || 0);
+
+    const nuevoMontoPagado = montoPagadoActual + montoNum;
+    const nuevoSaldo = montoCobro - nuevoMontoPagado;
+
+    // Evitar que el saldo se vaya a números raros
+    const saldoNormalizado = nuevoSaldo < 0 ? 0 : nuevoSaldo;
+
+    let nuevoEstadoPago = 'PAGO_PARCIAL';
+    if (saldoNormalizado === 0) {
+      nuevoEstadoPago = 'PAGADO';
+    }
+
+    // 2) Insertar el pago en pagos_cita
+    const id_pago_cita = await citasRepository.crearPagoCita(
+      {
+        id_cita: idCita,
+        id_paciente: cita.id_paciente,
+        monto: montoNum,
+        origen,
+        id_pago_caja: id_pago_caja || null,
+        observaciones: observaciones || null,
+      },
+      conn
+    );
+
+    // 3) Actualizar montos acumulados de la cita
+    await citasRepository.actualizarMontosCita(
+      {
+        id_cita: idCita,
+        monto_pagado: nuevoMontoPagado,
+        saldo_pendiente: saldoNormalizado,
+        estado_pago: nuevoEstadoPago,
+      },
+      conn
+    );
+
+    return {
+      message: 'Pago registrado correctamente',
+      id_cita: idCita,
+      id_pago_cita,
+      estado_pago: nuevoEstadoPago,
+      monto_pagado: nuevoMontoPagado,
+      saldo_pendiente: saldoNormalizado,
+    };
+  });
+}
 
 module.exports = {
   crearCita,
@@ -613,5 +695,6 @@ module.exports = {
   iniciarAtencion,
   marcarAtendida,
   registrarPagoAnticipoEnCaja,
+  registrarPagoParcial,
 };
 //fin del documento 

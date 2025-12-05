@@ -150,6 +150,17 @@ async function registrarPagoAnticipoEnCaja(req, res, next) {
     next(error);
   }
 }
+async function registrarPagoParcial(req, res, next) {
+  try {
+    const { id } = req.params;
+    const resultado = await citasService.registrarPagoParcial(id, req.body);
+
+    return res.status(201).json(resultado);
+  } catch (error) {
+    next(error);
+  }
+}
+
 
 module.exports = {
   crearCita,
@@ -160,5 +171,6 @@ module.exports = {
   iniciarAtencion,
   marcarAtendida,
   registrarPagoAnticipoEnCaja,
+  registrarPagoParcial,
 };
 //Fin del documento

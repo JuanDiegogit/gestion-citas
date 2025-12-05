@@ -32,6 +32,12 @@ export async function crearCita(payload) {
   return res.data; // { message, cita }
 }
 
+export async function registrarPagoParcial(idCita, payload) {
+  // payload = { monto, id_pago_caja?, origen?, observaciones? }
+  const { data } = await api.post(`/citas/${idCita}/pagos`, payload);
+  return data;
+}
+
 
 // ----- Pagos -----
 // Confirma el pago de UNA cita concreta (usa /citas/:id/confirmar-pago)

@@ -293,6 +293,8 @@ async function obtenerCitaPorId(id_cita, conn) {
       c.monto_cobro,
       c.id_paciente,
       c.id_medico
+      c.monto_pagado,
+      c.saldo_pendiente,
     FROM citas c
     WHERE c.id_cita = ?
   `;
@@ -435,6 +437,52 @@ async function existeCitaMismaFechaParaPaciente(
   return Number(rows[0]?.total || 0) > 0;
 }
 
+async function crearPagoCita(
+  { id_cita, id_paciente, monto, origen = 'CAJA', id_pago_caja = null, observaciones = null },
+  conn
+) {
+  const db = getConn(conn);
+
+  const sql = `
+    INSERT INTO pagos_cita (
+      id_cita,
+      id_paciente,
+      monto,
+      origen,
+      id_pago_caja,
+      observaciones
+    )
+    VALUES (?, ?, ?, ?, ?, ?)
+  `;
+
+  const params = [id_cita, id_paciente, monto, origen, id_pago_caja, observaciones];
+
+  const [result] = await db.query(sql, params);
+  return result.insertId; // id_pago_cita
+}
+async function actualizarMontosCita(
+  { id_cita, monto_pagado, saldo_pendiente, estado_pago },
+  conn
+) {
+  const db = getConn(conn);
+
+  const sql = `
+    UPDATE citas
+    SET monto_pagado = ?,
+        saldo_pendiente = ?,
+        estado_pago = ?
+    WHERE id_cita = ?
+  `;
+
+  const [result] = await db.query(sql, [
+    monto_pagado,
+    saldo_pendiente,
+    estado_pago,
+    id_cita,
+  ]);
+
+  return result.affectedRows > 0;
+}
 
 module.exports = {
   crearCita,
@@ -449,5 +497,7 @@ module.exports = {
   obtenerAnticipoPorId,
   existeCitaEnRangoParaMedico,
   existeCitaMismaFechaParaPaciente,
+  crearPagoCita,
+  actualizarMontosCita,
 };
 //fin del documento
