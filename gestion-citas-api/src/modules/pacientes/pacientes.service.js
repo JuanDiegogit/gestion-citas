@@ -195,10 +195,39 @@ async function actualizarPaciente(idParam, payload) {
   return { id_paciente: id };
 }
 
+async function obtenerSaldoPacienteCaja(idParam) {
+  const id = parseInt(idParam, 10);
+  if (Number.isNaN(id)) {
+    const err = new Error('El id del paciente debe ser un entero válido');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  // Llamamos al cliente de CAJA
+  try {
+    const resp = await cajaClient.obtenerSaldoCaja(id);
+    // Puedes adaptar este mapeo según lo que responda realmente tu API de Caja
+    return resp; // por ejemplo { saldo: 123.45 } o lo que devuelva Caja
+  } catch (error) {
+    console.error(
+      '[SIGCD] Error consultando saldo en CAJA:',
+      error.cause?.response?.data ||
+        error.response?.data ||
+        error.message ||
+        error
+    );
+    const err = new Error('No se pudo obtener el saldo desde Caja');
+    err.statusCode = error.statusCode || 502;
+    throw err;
+  }
+}
+
+
 module.exports = {
   listarPacientes,
   obtenerPaciente,
   crearPaciente,
   actualizarPaciente,
+  obtenerSaldoPacienteCaja,
 };
 //fin del documento

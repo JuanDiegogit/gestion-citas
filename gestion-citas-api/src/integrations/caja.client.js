@@ -80,10 +80,7 @@ async function crearPresupuesto({ idPaciente, tratamientos }) {
   return safePost('/api/presupuestos/crear', { idPaciente, tratamientos });
 }
 
-/*
- Obtener saldo en Caja (si tu otra API ya expone este endpoint).
- Equivale al GET /api/caja/saldo?idPaciente=...
- */
+
 async function obtenerSaldoCaja(idPaciente) {
   if (!idPaciente) {
     const err = new Error('idPaciente es obligatorio para consultar el saldo en Caja');
@@ -91,7 +88,8 @@ async function obtenerSaldoCaja(idPaciente) {
     throw err;
   }
 
-  return safeGet('/api/caja/saldo', { idPaciente });
+  // Caja: GET /api/saldo/:idPaciente
+  return safeGet(`/api/saldo/${idPaciente}`);
 }
 
 /*

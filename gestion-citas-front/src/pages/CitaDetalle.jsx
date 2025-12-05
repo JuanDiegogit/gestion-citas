@@ -6,6 +6,7 @@ import {
   iniciarAtencion,
   marcarAtendida,
   confirmarPago,
+  obtenerSaldoPacienteCaja,   // 👈 nueva función
 } from '../api/citasApi';
 
 function CitaDetalle() {
@@ -16,12 +17,20 @@ function CitaDetalle() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  // estado extra para saldo en Caja (consulta en tiempo real)
+  const [saldoCaja, setSaldoCaja] = useState(null);
+  const [loadingSaldo, setLoadingSaldo] = useState(false);
+  const [errorSaldo, setErrorSaldo] = useState('');
+
   async function loadDetalle() {
     try {
       setLoading(true);
       setError('');
       const data = await fetchCitaDetalle(id);
       setCita(data);
+      // cada vez que recargamos el detalle, limpiamos estado de saldo
+      setSaldoCaja(null);
+      setErrorSaldo('');
     } catch (err) {
       console.error(err);
       setError('Error al cargar el detalle de la cita');
@@ -67,6 +76,33 @@ function CitaDetalle() {
     } catch (err) {
       console.error(err);
       alert('Error al registrar el pago del anticipo en Caja');
+    }
+  }
+
+  // 👉 NUEVO: consultar saldo en Caja para el paciente de esta cita
+  async function handleConsultarSaldoCaja() {
+    if (!cita || !cita.paciente?.id_paciente) return;
+    try {
+      setLoadingSaldo(true);
+      setErrorSaldo('');
+      const resp = await obtenerSaldoPacienteCaja(cita.paciente.id_paciente);
+      // aquí asumimos que Caja (a través de SIGCD) responde { saldo: number }
+      // si tu API devuelve otra clave (ej. saldoActual), ajusta la línea de abajo
+      const valorSaldo =
+        resp.saldo ?? resp.saldoActual ?? resp.saldo_disponible ?? null;
+
+      setSaldoCaja(valorSaldo);
+      if (valorSaldo == null) {
+        setErrorSaldo('Caja no devolvió un saldo numérico.');
+      }
+    } catch (err) {
+      console.error(err);
+      setErrorSaldo(
+        err.message || 'No se pudo obtener el saldo desde Caja.'
+      );
+      setSaldoCaja(null);
+    } finally {
+      setLoadingSaldo(false);
     }
   }
 
@@ -153,10 +189,34 @@ function CitaDetalle() {
         <p>Sin anticipo registrado para esta cita.</p>
       )}
 
+      {/* 👇 Bloque de saldo en tiempo real */}
+      <div style={{ marginTop: '0.75rem' }}>
+        <button
+          type="button"
+          className="btn"
+          onClick={handleConsultarSaldoCaja}
+          disabled={loadingSaldo}
+        >
+          {loadingSaldo ? 'Consultando saldo en Caja…' : 'Consultar saldo actual en Caja'}
+        </button>
+
+        {saldoCaja != null && (
+          <p style={{ marginTop: '0.5rem' }}>
+            <strong>Saldo actual del paciente en Caja:</strong>{' '}
+            ${Number(saldoCaja).toFixed(2)}
+          </p>
+        )}
+
+        {errorSaldo && (
+          <p className="error-text" style={{ marginTop: '0.5rem' }}>
+            {errorSaldo}
+          </p>
+        )}
+      </div>
+
       <small style={{ display: 'block', marginTop: '0.5rem', opacity: 0.8 }}>
-        Nota: aquí solo se registra que Caja ya cobró el anticipo. El cobro real se
-        realiza en el sistema de Caja; Gestión de Citas solo guarda el estado y el ID
-        de pago.
+        Nota: la consulta de saldo se hace en tiempo real contra la API de Caja. El cobro
+        real se realiza siempre en el sistema de Caja.
       </small>
 
       <hr style={{ margin: '1rem 0' }} />
@@ -182,4 +242,4 @@ function CitaDetalle() {
 }
 
 export default CitaDetalle;
-//fin del documento
+//fin del documento 

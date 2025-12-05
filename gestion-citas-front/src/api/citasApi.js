@@ -68,6 +68,13 @@ export async function actualizarPaciente(id, payload) {
   return response.data;
 }
 
+// --- SALDO PACIENTE EN CAJA ---
+export async function getSaldoPaciente(idPaciente) {
+  const { data } = await api.get(`/pacientes/${idPaciente}/saldo`);
+  // el backend reenvía tal cual lo que responda CAJA
+  return data;
+}
+
 // Crear médico
 export async function crearMedico(payload) {
   const { data } = await api.post('/medicos', payload);

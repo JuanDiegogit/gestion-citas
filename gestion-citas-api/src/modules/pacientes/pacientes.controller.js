@@ -59,10 +59,21 @@ async function actualizarPaciente(req, res, next) {
   }
 }
 
+async function obtenerSaldoPacienteCaja(req, res, next) {
+  try {
+    const { id } = req.params;
+    const saldoInfo = await pacientesService.obtenerSaldoPacienteCaja(id);  
+    return res.json(saldoInfo);
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   listarPacientes,
   obtenerPaciente,
   crearPaciente,
   actualizarPaciente,
+  obtenerSaldoPacienteCaja,
 };
 //fin del documento
