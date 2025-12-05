@@ -292,9 +292,9 @@ async function obtenerCitaPorId(id_cita, conn) {
       c.estado_pago,
       c.monto_cobro,
       c.id_paciente,
-      c.id_medico
+      c.id_medico,
       c.monto_pagado,
-      c.saldo_pendiente,
+      c.saldo_pendiente
     FROM citas c
     WHERE c.id_cita = ?
   `;

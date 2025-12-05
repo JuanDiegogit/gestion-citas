@@ -329,6 +329,8 @@ async function obtenerDetalleCita(idRaw) {
       c.estado_cita,
       c.estado_pago,
       c.monto_cobro,
+      c.monto_pagado,
+      c.saldo_pendiente,
       IFNULL(c.saldo_paciente, 0) AS saldo_paciente,
       p.id_paciente,
       p.nombre           AS nombre_paciente,
@@ -379,6 +381,8 @@ async function obtenerDetalleCita(idRaw) {
     fecha_cita: row.fecha_cita,
     estado_cita: row.estado_cita,
     estado_pago: row.estado_pago,
+    monto_pagado: row.monto_pagado,
+  saldo_pendiente: row.saldo_pendiente,
     monto_cobro: row.monto_cobro,
     saldo_paciente: row.saldo_paciente,
     paciente: {
