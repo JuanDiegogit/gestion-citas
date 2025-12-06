@@ -149,6 +149,37 @@ async function crearCobroEnCaja({ idCita, idPaciente, monto, metodoPago }) {
   }
 }
 
+/**
+ * Sincroniza un tratamiento con la API de Caja.
+ *
+ * Recibe un objeto "tratamiento" como el que devuelve tratamientos.repository:
+ * {
+ *   id_tratamiento,
+ *   cve_trat,
+ *   nombre,
+ *   descripcion,
+ *   precio_base,
+ *   duracion_min,
+ *   activo
+ * }
+ *
+ * Lo envuelve en { tratamientos: [ ... ] } para el endpoint de Caja.
+ */
+async function sincronizarTratamientoEnCaja(tratamiento) {
+  if (!tratamiento || !tratamiento.nombre) {
+    const err = new Error(
+      'Tratamiento inválido: falta al menos el campo "nombre" para sincronizar en Caja'
+    );
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const payload = {
+    tratamientos: [tratamiento],
+  };
+
+  return safePost('/api/tratamientos/sync-desde-sigcd', payload);
+}
 
 module.exports = {
   registrarPaciente,
@@ -156,5 +187,6 @@ module.exports = {
   obtenerSaldoCaja,
   bloquearMonto,
   crearCobroEnCaja,
+  sincronizarTratamientoEnCaja,
 };
 //fin del documento

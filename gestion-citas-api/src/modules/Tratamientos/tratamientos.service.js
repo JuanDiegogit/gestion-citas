@@ -1,6 +1,7 @@
 // src/modules/tratamientos/tratamientos.service.js
 const tratamientosRepository = require('./tratamientos.repository');
 const atencionClinicaClient = require('../../integrations/atencionClinica.client');
+const cajaClient = require('../../integrations/caja.client');
 
 /**
  * Lista de tratamientos.
@@ -78,6 +79,7 @@ async function crearTratamiento(payload) {
     parsedDuracion = val;
   }
 
+  // 1) Crear en SIGCD (MySQL)
   const tratamiento = await tratamientosRepository.crearTratamiento({
     cve_trat,
     nombre,
@@ -85,37 +87,65 @@ async function crearTratamiento(payload) {
     precio_base: parsedPrecio,
     duracion_min: parsedDuracion,
     activo: typeof activo === 'boolean' ? activo : true,
-  })
+  });
+
+  // tratamiento debería tener esta forma:
+  // {
+  //   id_tratamiento,
+  //   cve_trat,
+  //   nombre,
+  //   descripcion,
+  //   precio_base,
+  //   duracion_min,
+  //   activo
+  // }
+
+  // 2) Sincronizar con Atención Clínica (best-effort)
   try {
     if (
       atencionClinicaClient &&
       typeof atencionClinicaClient.sincronizarTratamiento === 'function'
     ) {
-      await atencionClinicaClient.sincronizarTratamiento({
-        id_tratamiento: tratamiento.id_tratamiento,
-        cve_trat: tratamiento.cve_trat,
-        nombre: tratamiento.nombre,
-        descripcion: tratamiento.descripcion,
-        precio_base: tratamiento.precio_base,
-        duracion_min: tratamiento.duracion_min,
-        activo: tratamiento.activo,
-      });
-
+      await atencionClinicaClient.sincronizarTratamiento(tratamiento);
       console.log('[SIGCD] Tratamiento sincronizado con ATENCIÓN CLÍNICA');
     } else {
       console.warn(
-        '[SIGCD] atencionClinicaClient.sincronizarTratamiento no está definido (no se sincroniza tratamiento)'
+        '[SIGCD] atencionClinicaClient.sincronizarTratamiento no está definido'
       );
     }
-  } catch (syncErr) {
+  } catch (errAtencion) {
     console.error(
       '[SIGCD] Error al sincronizar tratamiento con ATENCIÓN CLÍNICA:',
-      syncErr.cause?.response?.data ||
-        syncErr.response?.data ||
-        syncErr.message ||
-        syncErr
+      errAtencion.cause?.response?.data ||
+        errAtencion.response?.data ||
+        errAtencion.message ||
+        errAtencion
     );
-    // Best-effort: no rompemos la creación del tratamiento
+    // No rompemos la creación local
+  }
+
+  // 3) Sincronizar con CAJA (best-effort)
+  try {
+    if (
+      cajaClient &&
+      typeof cajaClient.sincronizarTratamientoEnCaja === 'function'
+    ) {
+      await cajaClient.sincronizarTratamientoEnCaja(tratamiento);
+      console.log('[SIGCD] Tratamiento sincronizado con CAJA');
+    } else {
+      console.warn(
+        '[SIGCD] cajaClient.sincronizarTratamientoEnCaja no está definido'
+      );
+    }
+  } catch (errCaja) {
+    console.error(
+      '[SIGCD] Error al sincronizar tratamiento con CAJA:',
+      errCaja.cause?.response?.data ||
+        errCaja.response?.data ||
+        errCaja.message ||
+        errCaja
+    );
+    // También best-effort: no rompemos la creación local
   }
 
   return tratamiento;
