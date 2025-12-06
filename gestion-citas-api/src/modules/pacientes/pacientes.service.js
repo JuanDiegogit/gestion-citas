@@ -51,7 +51,12 @@ async function obtenerPaciente(idParam) {
 
 /**
  * Crea un paciente y sincroniza (best-effort) con
- * Atención Clínica y Caja, igual que hacía server.js.
+ * Atención Clínica y Caja.
+ *
+ * IMPORTANTE:
+ *  - Primero se crea en SIGCD → obtenemos id_paciente.
+ *  - Luego se intenta mandar a las APIs externas incluyendo ese id_paciente.
+ *  - Si falla la sincronización, NO se rompe la creación local.
  */
 async function crearPaciente(payload) {
   const {
@@ -69,6 +74,7 @@ async function crearPaciente(payload) {
     throw err;
   }
 
+  // 1) Crear en SIGCD (SQL Server) y recuperar el ID generado
   const id_paciente = await pacientesRepository.crearPaciente({
     nombre,
     apellidos,
@@ -85,11 +91,12 @@ async function crearPaciente(payload) {
       typeof atencionClinicaClient.sincronizarPaciente === 'function'
     ) {
       await atencionClinicaClient.sincronizarPaciente({
+        id_paciente,
         nombre,
         apellidos,
         fecha_nacimiento: fecha_nacimiento || null,
         telefono: telefono || null,
-        correo: email || null,
+        correo: email || null, // respetamos el campo 'correo' que ya usabas
       });
       console.log('[GCITAS] Paciente sincronizado con ATENCIÓN CLÍNICA');
     } else {
@@ -107,11 +114,9 @@ async function crearPaciente(payload) {
 
   // ---------- Sincronización con CAJA ----------
   try {
-    if (
-      cajaClient &&
-      typeof cajaClient.registrarPaciente === 'function'
-    ) {
+    if (cajaClient && typeof cajaClient.registrarPaciente === 'function') {
       await cajaClient.registrarPaciente({
+        id_paciente, // también mandamos el id_paciente para que Caja pueda relacionar
         nombre,
         apellido: apellidos,
         fecha_nac: fecha_nacimiento || null,
@@ -192,9 +197,29 @@ async function actualizarPaciente(idParam, payload) {
     throw err;
   }
 
+  // Si en algún momento quieres también re-sincronizar con las APIs externas,
+  // aquí podrías leer el paciente y mandar algo tipo:
+  //
+  // const pacienteActualizado = await pacientesRepository.obtenerPacientePorId(id);
+  // try {
+  //   await atencionClinicaClient.sincronizarPaciente({
+  //     id_paciente: id,
+  //     nombre: pacienteActualizado.nombre,
+  //     apellidos: pacienteActualizado.apellidos,
+  //     fecha_nacimiento: pacienteActualizado.fecha_nacimiento,
+  //     telefono: pacienteActualizado.telefono,
+  //     correo: pacienteActualizado.email || null,
+  //   });
+  // } catch (e) { ... }
+  //
+  // y lo mismo para Caja si hace falta.
+
   return { id_paciente: id };
 }
 
+/**
+ * Consulta del saldo del paciente en la API de Caja.
+ */
 async function obtenerSaldoPacienteCaja(idParam) {
   const id = parseInt(idParam, 10);
   if (Number.isNaN(id)) {
@@ -222,7 +247,6 @@ async function obtenerSaldoPacienteCaja(idParam) {
   }
 }
 
-
 module.exports = {
   listarPacientes,
   obtenerPaciente,
@@ -230,4 +254,4 @@ module.exports = {
   actualizarPaciente,
   obtenerSaldoPacienteCaja,
 };
-//fin del documento
+// fin del documento
