@@ -337,37 +337,37 @@ function CitaDetalle() {
           )}
 
           {!loadingSaldoCaja && !saldoCajaError && saldoCaja && (
-            <>
-              <p>
-                <strong>Saldo paciente (Caja):</strong>{' '}
-                {saldoCaja.saldo_paciente != null
-                  ? `$${Number(saldoCaja.saldo_paciente).toFixed(2)}`
-                  : '-'}
-              </p>
-              <p>
-                <strong>Total tratamientos (Caja):</strong>{' '}
-                {saldoCaja.total_tratamientos != null
-                  ? `$${Number(
-                      saldoCaja.total_tratamientos
-                    ).toFixed(2)}`
-                  : '-'}
-              </p>
-              <p>
-                <strong>Total pagado (Caja):</strong>{' '}
-                {saldoCaja.total_pagado != null
-                  ? `$${Number(saldoCaja.total_pagado).toFixed(2)}`
-                  : '-'}
-              </p>
-              <p>
-                <strong>Saldo pendiente (Caja):</strong>{' '}
-                {saldoCaja.saldo_pendiente != null
-                  ? `$${Number(
-                      saldoCaja.saldo_pendiente
-                    ).toFixed(2)}`
-                  : '-'}
-              </p>
-            </>
-          )}
+          <>
+            <p>
+              <strong>Saldo paciente (Caja):</strong>{' '}
+              {saldoCaja.saldoPendiente != null
+                ? `$${Number(saldoCaja.saldoPendiente).toFixed(2)}`
+                : '-'}
+            </p>
+
+            <p>
+              <strong>Total tratamientos (Caja):</strong>{' '}
+              {saldoCaja.totalTratamientos != null
+                ? `$${Number(saldoCaja.totalTratamientos).toFixed(2)}`
+                : '-'}
+            </p>
+
+            <p>
+              <strong>Total pagado (Caja):</strong>{' '}
+              {saldoCaja.totalPagado != null
+                ? `$${Number(saldoCaja.totalPagado).toFixed(2)}`
+                : '-'}
+            </p>
+
+            <p>
+              <strong>Saldo pendiente (Caja):</strong>{' '}
+              {saldoCaja.saldoPendiente != null
+                ? `$${Number(saldoCaja.saldoPendiente).toFixed(2)}`
+                : '-'}
+            </p>
+          </>
+        )}
+
 
           {!loadingSaldoCaja && !saldoCajaError && !saldoCaja && (
             <p>No se obtuvo información de Caja para este paciente.</p>
