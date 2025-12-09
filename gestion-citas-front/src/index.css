@@ -277,6 +277,59 @@ body {
   resize: vertical;
 }
 
+/* Inputs de filtros (citas, pacientes) con el mismo estilo de los formularios */
+.citas-filtros-form input[type='text'],
+.citas-filtros-form input[type='number'],
+.citas-filtros-form input[type='date'],
+.citas-filtros-form select {
+  width: 100%;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.95rem;
+  border-radius: 6px;
+  border: 1px solid #4b5563;
+  background-color: #020617;
+  color: #f9fafb;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+.citas-filtros-form input[type='text']:focus,
+.citas-filtros-form input[type='number']:focus,
+.citas-filtros-form input[type='date']:focus,
+.citas-filtros-form select:focus {
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 1px #38bdf8;
+  background-color: #020617;
+}
+
+.citas-filtros-form input[type='text'],
+.citas-filtros-form input[type='number'],
+.citas-filtros-form input[type='date'],
+.citas-filtros-form select {
+  background-color: #020819; /* un tono apenas más claro que el fondo general */
+}
+
+/* Mejorar visibilidad del icono del calendario en inputs de fecha (modo oscuro) */
+input[type='date']::-webkit-calendar-picker-indicator,
+input[type='datetime-local']::-webkit-calendar-picker-indicator {
+  filter: invert(1) brightness(1.4);
+  cursor: pointer;
+}
+
+/* Que el icono no se pegue tanto al borde en modo oscuro */
+input[type='date'],
+input[type='datetime-local'] {
+  padding-right: 2rem; /* deja espacio al icono */
+}
+
+.citas-filtros-form input[type='text'],
+.citas-filtros-form input[type='number'],
+.citas-filtros-form input[type='date'],
+.citas-filtros-form select {
+  padding: 0.32rem 0.55rem;
+  font-size: 0.9rem;
+}
+
 /* ================== Botones ================== */
 
 .btn-primary,
@@ -636,5 +689,6 @@ body {
     padding: 1rem 1.25rem;
   }
 }
+
 
 /* Fin del documento */
