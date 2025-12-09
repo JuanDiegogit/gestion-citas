@@ -8,6 +8,31 @@ import {
   obtenerSaldoPacienteCaja,
 } from '../api/citasApi';
 
+/**
+ * Helper genérico para construir mensajes de error legibles.
+ * - Prioriza data.error y data.message del backend.
+ * - Trata algunos códigos comunes (429, 500).
+ */
+function buildErrorMessage(err, defaultMessage) {
+  if (!err) return defaultMessage;
+
+  const status = err?.response?.status;
+  const data = err?.response?.data;
+
+  if (data?.error) return data.error;
+  if (data?.message) return data.message;
+
+  if (status === 429) {
+    return 'El servicio está temporalmente saturado (429). Intente nuevamente en unos minutos.';
+  }
+
+  if (status === 500) {
+    return 'Ocurrió un error interno en el servidor. Intente nuevamente más tarde.';
+  }
+
+  return err?.message || defaultMessage;
+}
+
 function CitaDetalle() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -31,9 +56,11 @@ function CitaDetalle() {
         setSaldoCaja(null);
         setSaldoCajaError('');
 
+        // 1) Detalle de la cita
         const data = await fetchCitaDetalle(id);
         setCita(data);
 
+        // 2) Saldo en Caja, si hay paciente
         if (data?.paciente?.id_paciente) {
           try {
             setLoadingSaldoCaja(true);
@@ -43,22 +70,33 @@ function CitaDetalle() {
             setSaldoCaja(saldo || null);
           } catch (errSaldo) {
             console.error('[CitaDetalle] Error cargando saldo desde Caja:', errSaldo);
-            setSaldoCajaError(
-              errSaldo?.response?.data?.message ||
-              errSaldo?.message ||
-              'No se pudo cargar el saldo desde Caja.'
-            );
+
+            const status = errSaldo?.response?.status;
+            let mensaje = 'No se pudo cargar el saldo desde Caja.';
+
+            if (status === 404) {
+              mensaje = 'Caja no tiene saldo registrado para este paciente.';
+            } else if (status === 429) {
+              mensaje =
+                'El servicio de Caja está temporalmente saturado (429). Intente nuevamente en unos minutos.';
+            } else if (errSaldo?.response?.data?.message) {
+              mensaje = errSaldo.response.data.message;
+            } else if (errSaldo?.message) {
+              mensaje = errSaldo.message;
+            }
+
+            setSaldoCajaError(mensaje);
           } finally {
             setLoadingSaldoCaja(false);
           }
         }
       } catch (err) {
         console.error('[CitaDetalle] Error cargando cita:', err);
-        setError(
-          err?.response?.data?.message ||
-          err?.message ||
-          'Error al cargar el detalle de la cita'
+        const msg = buildErrorMessage(
+          err,
+          'Error al cargar el detalle de la cita.'
         );
+        setError(msg);
       } finally {
         setLoading(false);
       }
@@ -147,15 +185,14 @@ function CitaDetalle() {
           : prev
       );
 
-      setInfoMsg(resp.message || 'Pago registrado correctamente');
+      setInfoMsg(resp.message || 'Pago registrado correctamente.');
     } catch (err) {
       console.error('[CitaDetalle] Error registrando pago parcial:', err);
-      setError(
-        err?.response?.data?.error ||
-        err?.response?.data?.message ||
-        err?.message ||
-        'Error al registrar el pago parcial'
+      const msg = buildErrorMessage(
+        err,
+        'Error al registrar el pago parcial.'
       );
+      setError(msg);
     } finally {
       setSaving(false);
     }
@@ -165,7 +202,7 @@ function CitaDetalle() {
     if (!cita) return;
 
     const confirm = window.confirm(
-      'Se enviará el cobro del anticipo a la API de Caja. ¿Deseas continuar?'
+      'Se enviará el cobro del anticipo a la API de Caja. ¿Desea continuar?'
     );
     if (!confirm) return;
 
@@ -176,22 +213,25 @@ function CitaDetalle() {
 
       const resp = await registrarPagoAnticipoEnCaja(cita.id_cita);
 
-      setInfoMsg(resp.mensaje || 'Cobro enviado a Caja');
+      setInfoMsg(resp.mensaje || 'Cobro enviado a Caja.');
     } catch (err) {
       console.error('[CitaDetalle] Error registrando anticipo en Caja:', err);
-      setError(
-        err?.response?.data?.error ||
-        err?.response?.data?.message ||
-        err?.message ||
-        'Error al registrar el anticipo en Caja'
+      const msg = buildErrorMessage(
+        err,
+        'Error al registrar el anticipo en Caja.'
       );
+      setError(msg);
     } finally {
       setSaving(false);
     }
   }
 
   if (loading) {
-    return <div className="page-container"><p>Cargando detalle de la cita...</p></div>;
+    return (
+      <div className="page-container">
+        <p>Cargando detalle de la cita...</p>
+      </div>
+    );
   }
 
   if (error && !cita) {
@@ -275,7 +315,7 @@ function CitaDetalle() {
         </div>
       </header>
 
-      {error && <p className="error-text">{error}</p>}
+      {error && cita && <p className="error-text">{error}</p>}
       {infoMsg && <p className="success-text">{infoMsg}</p>}
       {saving && <p>Guardando cambios...</p>}
 
@@ -287,11 +327,15 @@ function CitaDetalle() {
           <div className="kv-list">
             <div className="kv-row">
               <span className="kv-label">Fecha de registro</span>
-              <span className="kv-value">{formatDateTime(fecha_registro)}</span>
+              <span className="kv-value">
+                {formatDateTime(fecha_registro)}
+              </span>
             </div>
             <div className="kv-row">
               <span className="kv-label">Fecha de la cita</span>
-              <span className="kv-value">{formatDateTime(fecha_cita)}</span>
+              <span className="kv-value">
+                {formatDateTime(fecha_cita)}
+              </span>
             </div>
             <div className="kv-row">
               <span className="kv-label">Motivo</span>
@@ -361,10 +405,14 @@ function CitaDetalle() {
             {!loadingSaldoCaja && !saldoCajaError && saldoCaja && (
               <div className="kv-list" style={{ marginTop: '0.4rem' }}>
                 <div className="kv-row">
-                  <span className="kv-label">Total tratamientos (Caja)</span>
+                  <span className="kv-label">
+                    Total tratamientos (Caja)
+                  </span>
                   <span className="kv-value">
                     {saldoCaja.totalTratamientos != null
-                      ? `$${Number(saldoCaja.totalTratamientos).toFixed(2)}`
+                      ? `$${Number(
+                          saldoCaja.totalTratamientos
+                        ).toFixed(2)}`
                       : '—'}
                   </span>
                 </div>
@@ -377,10 +425,14 @@ function CitaDetalle() {
                   </span>
                 </div>
                 <div className="kv-row">
-                  <span className="kv-label">Saldo pendiente (Caja)</span>
+                  <span className="kv-label">
+                    Saldo pendiente (Caja)
+                  </span>
                   <span className="kv-value">
                     {saldoCaja.saldoPendiente != null
-                      ? `$${Number(saldoCaja.saldoPendiente).toFixed(2)}`
+                      ? `$${Number(
+                          saldoCaja.saldoPendiente
+                        ).toFixed(2)}`
                       : '—'}
                   </span>
                 </div>
@@ -418,7 +470,7 @@ function CitaDetalle() {
         </section>
       </div>
 
-      {/* Segunda fila: paciente / médico / tratamiento / anticipo */}
+      {/* Segunda fila: paciente / médico */}
       <div className="detail-sections-row">
         <section className="card detail-section">
           <h3 className="detail-section-title">Paciente</h3>
@@ -433,11 +485,15 @@ function CitaDetalle() {
             </div>
             <div className="kv-row">
               <span className="kv-label">Teléfono</span>
-              <span className="kv-value">{paciente?.telefono || '—'}</span>
+              <span className="kv-value">
+                {paciente?.telefono || '—'}
+              </span>
             </div>
             <div className="kv-row">
               <span className="kv-label">Email</span>
-              <span className="kv-value">{paciente?.email || '—'}</span>
+              <span className="kv-value">
+                {paciente?.email || '—'}
+              </span>
             </div>
             <div className="kv-row">
               <span className="kv-label">Canal preferente</span>
@@ -475,17 +531,22 @@ function CitaDetalle() {
         </section>
       </div>
 
+      {/* Tercera fila: tratamiento / anticipo */}
       <div className="detail-sections-row">
         <section className="card detail-section detail-section-full">
           <h3 className="detail-section-title">Tratamiento</h3>
           <div className="kv-list">
             <div className="kv-row">
               <span className="kv-label">Clave</span>
-              <span className="kv-value">{tratamiento?.cve_trat || '—'}</span>
+              <span className="kv-value">
+                {tratamiento?.cve_trat || '—'}
+              </span>
             </div>
             <div className="kv-row">
               <span className="kv-label">Nombre</span>
-              <span className="kv-value">{tratamiento?.nombre || '—'}</span>
+              <span className="kv-value">
+                {tratamiento?.nombre || '—'}
+              </span>
             </div>
             <div className="kv-row">
               <span className="kv-label">Descripción</span>
@@ -512,13 +573,17 @@ function CitaDetalle() {
                 <span className="kv-label">Monto anticipo</span>
                 <span className="kv-value">
                   {anticipo.monto_anticipo != null
-                    ? `$${Number(anticipo.monto_anticipo).toFixed(2)}`
+                    ? `$${Number(
+                        anticipo.monto_anticipo
+                      ).toFixed(2)}`
                     : '—'}
                 </span>
               </div>
               <div className="kv-row">
                 <span className="kv-label">Estado</span>
-                <span className="kv-value">{anticipo.estado}</span>
+                <span className="kv-value">
+                  {anticipo.estado}
+                </span>
               </div>
               <div className="kv-row">
                 <span className="kv-label">ID pago Caja</span>
@@ -531,7 +596,7 @@ function CitaDetalle() {
                 <span className="kv-value">
                   {formatDateTime(anticipo.fecha_solicitud)}
                 </span>
-              </div>
+              </div> 
               <div className="kv-row">
                 <span className="kv-label">Fecha confirmación</span>
                 <span className="kv-value">
@@ -549,4 +614,4 @@ function CitaDetalle() {
 }
 
 export default CitaDetalle;
-//fin del documento 
+//fin del documento
