@@ -5,7 +5,7 @@ import {
   fetchCitaDetalle,
   registrarPagoParcial,
   registrarPagoAnticipoEnCaja,
-  obtenerSaldoPacienteCaja, // <<< importante: usar saldo desde Caja
+  obtenerSaldoPacienteCaja, // usa saldo desde Caja
 } from '../api/citasApi';
 
 function CitaDetalle() {
@@ -43,14 +43,11 @@ function CitaDetalle() {
             const saldo = await obtenerSaldoPacienteCaja(
               data.paciente.id_paciente
             );
-            // saldo es lo que responda Caja: se asume algo tipo:
-            // { saldo_paciente, total_tratamientos, total_pagado, saldo_pendiente }
+            // Se asume que Caja responde algo tipo:
+            // { totalTratamientos, totalPagado, saldoPendiente }
             setSaldoCaja(saldo || null);
           } catch (errSaldo) {
-            console.error(
-              '[CitaDetalle] Error cargando saldo desde Caja:',
-              errSaldo
-            );
+            console.error('[CitaDetalle] Error cargando saldo desde Caja:', errSaldo);
             setSaldoCajaError(
               errSaldo?.response?.data?.message ||
                 errSaldo?.message ||
@@ -111,7 +108,7 @@ function CitaDetalle() {
         origen: 'CAJA',
       });
 
-      // Actualizamos sólo los campos relacionados al pago
+      // Actualizamos sólo los campos relacionados al pago de la cita
       setCita((prev) =>
         prev
           ? {
@@ -124,7 +121,7 @@ function CitaDetalle() {
       );
 
       setInfoMsg(resp.message || 'Pago registrado correctamente');
-      // Opcional: si quieres, podrías volver a pedir saldo a Caja aquí.
+      // Opcional: aquí podrías volver a pedir saldo a Caja si quieres refrescar datos globales
     } catch (err) {
       console.error('[CitaDetalle] Error registrando pago parcial:', err);
       setError(
@@ -153,7 +150,7 @@ function CitaDetalle() {
 
       const resp = await registrarPagoAnticipoEnCaja(cita.id_cita);
 
-      // resp.mensaje y resp.caja.* según lo que regreses del backend
+      // resp.mensaje y resp.caja.* según lo que regrese tu backend
       setInfoMsg(resp.mensaje || 'Cobro enviado a Caja');
     } catch (err) {
       console.error('[CitaDetalle] Error registrando anticipo en Caja:', err);
@@ -240,9 +237,7 @@ function CitaDetalle() {
         <h3>Paciente</h3>
         <p>
           <strong>Nombre:</strong>{' '}
-          {paciente
-            ? `${paciente.nombre} ${paciente.apellidos || ''}`
-            : '-'}
+          {paciente ? `${paciente.nombre} ${paciente.apellidos || ''}` : '-'}
         </p>
         <p>
           <strong>Teléfono:</strong> {paciente?.telefono || '-'}
@@ -251,8 +246,7 @@ function CitaDetalle() {
           <strong>Email:</strong> {paciente?.email || '-'}
         </p>
         <p>
-          <strong>Canal preferente:</strong>{' '}
-          {paciente?.canal_preferente || '-'}
+          <strong>Canal preferente:</strong> {paciente?.canal_preferente || '-'}
         </p>
       </section>
 
@@ -279,8 +273,7 @@ function CitaDetalle() {
           <strong>Nombre:</strong> {tratamiento?.nombre || '-'}
         </p>
         <p>
-          <strong>Descripción:</strong>{' '}
-          {tratamiento?.descripcion || '-'}
+          <strong>Descripción:</strong> {tratamiento?.descripcion || '-'}
         </p>
         <p>
           <strong>Precio base:</strong>{' '}
@@ -308,6 +301,7 @@ function CitaDetalle() {
             ? `$${Number(saldo_pendiente).toFixed(2)}`
             : '-'}
         </p>
+
         {/* Bloque con info en vivo desde CAJA */}
         <div
           style={{
@@ -329,37 +323,29 @@ function CitaDetalle() {
           )}
 
           {!loadingSaldoCaja && !saldoCajaError && saldoCaja && (
-          <>
-            <p>
-              <strong>Saldo paciente (Caja):</strong>{' '}
-              {saldoCaja.saldoPendiente != null
-                ? `$${Number(saldoCaja.saldoPendiente).toFixed(2)}`
-                : '-'}
-            </p>
+            <>
+              <p>
+                <strong>Total tratamientos (Caja):</strong>{' '}
+                {saldoCaja.totalTratamientos != null
+                  ? `$${Number(saldoCaja.totalTratamientos).toFixed(2)}`
+                  : '-'}
+              </p>
 
-            <p>
-              <strong>Total tratamientos (Caja):</strong>{' '}
-              {saldoCaja.totalTratamientos != null
-                ? `$${Number(saldoCaja.totalTratamientos).toFixed(2)}`
-                : '-'}
-            </p>
+              <p>
+                <strong>Total pagado (Caja):</strong>{' '}
+                {saldoCaja.totalPagado != null
+                  ? `$${Number(saldoCaja.totalPagado).toFixed(2)}`
+                  : '-'}
+              </p>
 
-            <p>
-              <strong>Total pagado (Caja):</strong>{' '}
-              {saldoCaja.totalPagado != null
-                ? `$${Number(saldoCaja.totalPagado).toFixed(2)}`
-                : '-'}
-            </p>
-
-            <p>
-              <strong>Saldo pendiente (Caja):</strong>{' '}
-              {saldoCaja.saldoPendiente != null
-                ? `$${Number(saldoCaja.saldoPendiente).toFixed(2)}`
-                : '-'}
-            </p>
-          </>
-        )}
-
+              <p>
+                <strong>Saldo pendiente (Caja):</strong>{' '}
+                {saldoCaja.saldoPendiente != null
+                  ? `$${Number(saldoCaja.saldoPendiente).toFixed(2)}`
+                  : '-'}
+              </p>
+            </>
+          )}
 
           {!loadingSaldoCaja && !saldoCajaError && !saldoCaja && (
             <p>No se obtuvo información de Caja para este paciente.</p>
@@ -400,8 +386,7 @@ function CitaDetalle() {
               <strong>Estado:</strong> {anticipo.estado}
             </p>
             <p>
-              <strong>ID pago Caja:</strong>{' '}
-              {anticipo.id_pago_caja || '-'}
+              <strong>ID pago Caja:</strong> {anticipo.id_pago_caja || '-'}
             </p>
             <p>
               <strong>Fecha solicitud:</strong>{' '}

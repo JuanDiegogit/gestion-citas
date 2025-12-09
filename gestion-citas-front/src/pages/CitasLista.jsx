@@ -33,6 +33,7 @@ export default function CitasLista() {
     try {
       setLoading(true);
       setError('');
+
       const params = { page: p, pageSize };
       if (estadoFiltro !== 'TODOS') params.estado_cita = estadoFiltro;
       if (idMedicoFiltro) params.id_medico = idMedicoFiltro;
@@ -40,6 +41,7 @@ export default function CitasLista() {
       if (fechaHasta) params.fecha_hasta = fechaHasta;
 
       const data = await fetchCitasResumen(params);
+
       setCitas(data.citas || []);
       setTotal(data.total || 0);
       setPage(data.page || p);
@@ -53,6 +55,7 @@ export default function CitasLista() {
 
   async function handleIniciarAtencion(cita) {
     if (!window.confirm(`¿Iniciar atención de la cita ${cita.folio_cita}?`)) return;
+
     try {
       setLoading(true);
       await iniciarAtencion(cita.id_cita);
@@ -67,6 +70,7 @@ export default function CitasLista() {
 
   async function handleMarcarAtendida(cita) {
     if (!window.confirm(`¿Marcar como ATENDIDA la cita ${cita.folio_cita}?`)) return;
+
     try {
       setLoading(true);
       await marcarAtendida(cita.id_cita);
@@ -94,9 +98,39 @@ export default function CitasLista() {
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
+  function formatearFecha(fechaIso) {
+    if (!fechaIso) return '';
+    const fecha = new Date(fechaIso);
+    // Puedes ajustar la zona/localización si lo necesitas
+    return fecha.toLocaleString('es-MX', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }
+
+  function getTextoEstadoPago(estadoPago) {
+    switch (estadoPago) {
+      case 'PAGADO':
+        return 'PAGADO (confirmado en Caja)';
+      case 'PAGO_PARCIAL':
+        return 'PAGO PARCIAL';
+      case 'PENDIENTE':
+        return 'PENDIENTE DE PAGO';
+      case 'SIN_PAGO':
+      default:
+        return 'SIN PAGO';
+    }
+  }
+
   return (
     <div className="citas-page">
-      <div className="citas-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div
+        className="citas-header"
+        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+      >
         <h1>Agenda de citas</h1>
         <button className="btn-primary" onClick={() => navigate('/citas/nueva')}>
           + Nueva cita
@@ -106,11 +140,17 @@ export default function CitasLista() {
       <section className="citas-filtros">
         <form
           className="citas-filtros-form"
-          onSubmit={(e) => { e.preventDefault(); loadCitas(1); }}
+          onSubmit={(e) => {
+            e.preventDefault();
+            loadCitas(1);
+          }}
         >
           <div className="filtro-item">
             <label>Estado de cita</label>
-            <select value={estadoFiltro} onChange={e => setEstadoFiltro(e.target.value)}>
+            <select
+              value={estadoFiltro}
+              onChange={(e) => setEstadoFiltro(e.target.value)}
+            >
               <option value="TODOS">Todos</option>
               <option value="PROGRAMADA">PROGRAMADA</option>
               <option value="CONFIRMADA">CONFIRMADA</option>
@@ -124,7 +164,7 @@ export default function CitasLista() {
             <input
               type="number"
               value={idMedicoFiltro}
-              onChange={e => setIdMedicoFiltro(e.target.value)}
+              onChange={(e) => setIdMedicoFiltro(e.target.value)}
               placeholder="Ej. 1"
             />
           </div>
@@ -134,7 +174,7 @@ export default function CitasLista() {
             <input
               type="date"
               value={fechaDesde}
-              onChange={e => setFechaDesde(e.target.value)}
+              onChange={(e) => setFechaDesde(e.target.value)}
             />
           </div>
 
@@ -143,18 +183,33 @@ export default function CitasLista() {
             <input
               type="date"
               value={fechaHasta}
-              onChange={e => setFechaHasta(e.target.value)}
+              onChange={(e) => setFechaHasta(e.target.value)}
             />
           </div>
 
-          <div className="filtro-item" style={{ flexDirection: 'row', gap: '0.5rem', alignItems: 'flex-end' }}>
-            <button type="submit" className="btn">Aplicar filtros</button>
-            <button type="button" className="btn-secondary" onClick={() => {
-              setEstadoFiltro('TODOS');
-              setIdMedicoFiltro('');
-              setFechaDesde('');
-              setFechaHasta('');
-            }}>Limpiar filtros</button>
+          <div
+            className="filtro-item"
+            style={{
+              flexDirection: 'row',
+              gap: '0.5rem',
+              alignItems: 'flex-end',
+            }}
+          >
+            <button type="submit" className="btn">
+              Aplicar filtros
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => {
+                setEstadoFiltro('TODOS');
+                setIdMedicoFiltro('');
+                setFechaDesde('');
+                setFechaHasta('');
+              }}
+            >
+              Limpiar filtros
+            </button>
           </div>
         </form>
       </section>
@@ -180,33 +235,58 @@ export default function CitasLista() {
                 </tr>
               </thead>
               <tbody>
-                {citas.map(cita => {
-                  const fecha = new Date(cita.fecha_cita);
-                  const fechaStr = fecha.toLocaleString();
+                {citas.map((cita) => {
+                  const fechaStr = formatearFecha(cita.fecha_cita);
 
-                  let estadoPagoCajaTexto = 'SIN_PAGO';
-                  if (cita.estado_pago === 'PAGADO') {
-                    estadoPagoCajaTexto = 'PAGADO (confirmado en Caja)';
-                  } else if (cita.tiene_anticipo) {
-                    estadoPagoCajaTexto = 'SIN_ANTICIPO (pendiente en Caja)';
-                  }
+                  const nombrePaciente = [
+                    cita.nombre_paciente,
+                    cita.apellidos_paciente,
+                  ]
+                    .filter(Boolean)
+                    .join(' ');
+
+                  const nombreMedico = [cita.nombre_medico, cita.apellidos_medico]
+                    .filter(Boolean)
+                    .join(' ');
+
+                  const estadoPagoCajaTexto = getTextoEstadoPago(cita.estado_pago);
 
                   return (
                     <tr key={cita.id_cita}>
                       <td>{cita.folio_cita}</td>
                       <td>{fechaStr}</td>
-                      <td>{cita.paciente_nombre}</td>
-                      <td>{cita.medico_nombre}</td>
+                      <td>{nombrePaciente || '-'}</td>
+                      <td>{nombreMedico || '-'}</td>
                       <td>{cita.estado_cita}</td>
                       <td>{estadoPagoCajaTexto}</td>
-                      <td style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
-                        <button className="btn" type="button" onClick={() => navigate(`/citas/${cita.id_cita}`)}>
+                      <td
+                        style={{
+                          display: 'flex',
+                          gap: '0.25rem',
+                          flexWrap: 'wrap',
+                        }}
+                      >
+                        <button
+                          className="btn"
+                          type="button"
+                          onClick={() => navigate(`/citas/${cita.id_cita}`)}
+                        >
                           Ver detalle
                         </button>
-                        <button className="btn" type="button" onClick={() => handleIniciarAtencion(cita)}>
+                        <button
+                          className="btn"
+                          type="button"
+                          onClick={() => handleIniciarAtencion(cita)}
+                          disabled={loading}
+                        >
                           Iniciar atención
                         </button>
-                        <button className="btn" type="button" onClick={() => handleMarcarAtendida(cita)}>
+                        <button
+                          className="btn"
+                          type="button"
+                          onClick={() => handleMarcarAtendida(cita)}
+                          disabled={loading}
+                        >
                           Marcar atendida
                         </button>
                         <button
@@ -253,4 +333,4 @@ export default function CitasLista() {
     </div>
   );
 }
-//fin del documento
+// fin del documento

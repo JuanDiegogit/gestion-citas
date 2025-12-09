@@ -1,4 +1,4 @@
-/*src/index.css
+/* src/index.css
  ================== Estilos generales ================== */
 *,
 *::before,
@@ -35,7 +35,7 @@ body {
   margin-top: 0.75rem;
   display: flex;
   flex-wrap: wrap;
-  gap: 1.5rem;           /* ← separación entre Citas / Pacientes / etc. */
+  gap: 1.5rem;           /* separación entre Citas / Pacientes / etc. */
 }
 
 .nav-link {
@@ -213,6 +213,74 @@ body {
   cursor: not-allowed;
 }
 
+/* ================== Badges (chips para estados) ================== */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border: 1px solid transparent;
+}
+
+/* genéricos */
+.badge-success {
+  background-color: #064e3b;
+  border-color: #16a34a;
+  color: #bbf7d0;
+}
+
+.badge-warning {
+  background-color: #451a03;
+  border-color: #f97316;
+  color: #fed7aa;
+}
+
+.badge-danger {
+  background-color: #450a0a;
+  border-color: #ef4444;
+  color: #fecaca;
+}
+
+.badge-muted {
+  background-color: #020617;
+  border-color: #4b5563;
+  color: #e5e7eb;
+}
+
+.badge-info {
+  background-color: #0b1120;
+  border-color: #38bdf8;
+  color: #bae6fd;
+}
+
+/* por tipo de estado de cita (por si los usas así en las clases) */
+.badge-programada {
+  background-color: #0b1120;
+  border-color: #38bdf8;
+  color: #bae6fd;
+}
+
+.badge-confirmada {
+  background-color: #022c22;
+  border-color: #22c55e;
+  color: #bbf7d0;
+}
+
+.badge-cancelada {
+  background-color: #450a0a;
+  border-color: #ef4444;
+  color: #fecaca;
+}
+
+.badge-atendida {
+  background-color: #064e3b;
+  border-color: #16a34a;
+  color: #bbf7d0;
+}
+
 /* ================== Tablas ================== */
 
 .citas-tabla-section {
@@ -287,4 +355,4 @@ body {
     justify-content: center;
   }
 }
-/*Fin del documento */
+/* Fin del documento */
