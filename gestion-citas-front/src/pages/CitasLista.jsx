@@ -84,17 +84,31 @@ export default function CitasLista() {
   }
 
   async function handleConfirmarPago(cita) {
-    try {
-      setLoading(true);
-      await registrarPagoAnticipoEnCaja(cita.id_cita);
-      await loadCitas(page);
-    } catch (err) {
-      console.error('Error registrando pago de anticipo:', err);
+  try {
+    setLoading(true);
+    setError('');
+
+    await registrarPagoAnticipoEnCaja(cita.id_cita);
+    await loadCitas(page);
+  } catch (err) {
+    console.error('Error registrando pago de anticipo:', err);
+
+    // Si el backend manda mensaje concreto, lo mostramos
+    const msgBackend =
+      err?.response?.data?.message ||
+      err?.response?.data?.error ||
+      err?.message;
+
+    if (msgBackend) {
+      setError(`Error registrando pago de anticipo: ${msgBackend}`);
+    } else {
       setError('No se pudo registrar el pago de anticipo.');
-    } finally {
-      setLoading(false);
     }
+  } finally {
+    setLoading(false);
   }
+}
+
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
@@ -327,16 +341,28 @@ export default function CitasLista() {
                         >
                           Marcar atendida
                         </button>
-                        <button
-                          className="btn"
-                          type="button"
-                          onClick={() => handleConfirmarPago(cita)}
-                          disabled={cita.estado_pago === 'PAGADO' || loading}
-                        >
-                          {cita.estado_pago === 'PAGADO'
-                            ? 'Pago confirmado'
-                            : 'Registrar pago de anticipo en Caja'}
-                        </button>
+
+                        {/* Botón pago / anticipo en Caja */}
+                        {cita.estado_pago === 'PAGADO' && (
+                          <button
+                            className="btn"
+                            type="button"
+                            disabled
+                          >
+                            Pago confirmado
+                          </button>
+                        )}
+
+                        {cita.estado_pago === 'PENDIENTE' && (
+                          <button
+                            className="btn"
+                            type="button"
+                            onClick={() => handleConfirmarPago(cita)}
+                            disabled={loading}
+                          >
+                            Registrar pago de anticipo en Caja
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );
