@@ -11,7 +11,7 @@ const {
 */
 const http = axios.create({
   baseURL: CAJA_BASE_URL,
-  timeout: 500, // puedes subirlo si quieres
+  timeout: 2000, // puedes ajustar si lo necesitas
 });
 
 /*
@@ -23,7 +23,6 @@ async function safePost(path, body, options = {}) {
     return resp.data;
   } catch (error) {
     const detalle = error.response?.data || error.message;
-
     console.error(`[CAJA] Error en POST ${path}:`, detalle);
 
     const err = new Error(`Error al comunicarse con CAJA (POST ${path})`);
@@ -45,7 +44,6 @@ async function safeGet(path, params = {}, options = {}) {
     return resp.data;
   } catch (error) {
     const detalle = error.response?.data || error.message;
-
     console.error(`[CAJA] Error en GET ${path}:`, detalle);
 
     const err = new Error(`Error al comunicarse con CAJA (GET ${path})`);
@@ -64,8 +62,25 @@ async function safePostFullUrl(fullUrl, body, context = 'CAJA') {
     return resp.data;
   } catch (error) {
     const detalle = error.response?.data || error.message;
-
     console.error(`[${context}] Error en POST ${fullUrl}:`, detalle);
+
+    const err = new Error(`Error al comunicarse con ${context}`);
+    err.cause = error;
+    err.statusCode = error.response?.status || 502;
+    throw err;
+  }
+}
+
+/*
+  Helper para GET usando URL COMPLETA (sin baseURL)
+*/
+async function safeGetFullUrl(fullUrl, context = 'CAJA') {
+  try {
+    const resp = await axios.get(fullUrl);
+    return resp.data;
+  } catch (error) {
+    const detalle = error.response?.data || error.message;
+    console.error(`[${context}] Error en GET ${fullUrl}:`, detalle);
 
     const err = new Error(`Error al comunicarse con ${context}`);
     err.cause = error;
@@ -80,10 +95,11 @@ async function safePostFullUrl(fullUrl, body, context = 'CAJA') {
 
 /*
   Registrar un paciente en la API de Caja.
-  POST /api/pacientes/registrar
+  En el proyecto de Caja actual:
+  POST /api/pacientes
 */
 async function registrarPaciente(paciente) {
-  return safePost('/api/pacientes/registrar', paciente);
+  return safePost('/api/pacientes', paciente);
 }
 
 /*
@@ -106,24 +122,20 @@ async function crearPresupuesto({ idPaciente, tratamientos }) {
 }
 
 /*
-  Obtener saldo del paciente usando la API de INTEGRACIÓN de Caja.
-  Usa la URL completa: CAJA_SALDO_PACIENTE_URL
-  (asumimos que el endpoint espera { idPaciente } por POST)
+  Obtener saldo del paciente usando la API de Caja.
+  Caja expone: GET /api/saldo/:idPaciente
 */
 async function obtenerSaldoPaciente(idPaciente) {
   if (!idPaciente) {
-    const err = new Error('idPaciente es obligatorio para consultar el saldo en Caja');
+    const err = new Error(
+      'idPaciente es obligatorio para consultar el saldo en Caja'
+    );
     err.statusCode = 400;
     throw err;
   }
 
-  const payload = { idPaciente: Number(idPaciente) };
-
-  return safePostFullUrl(
-    CAJA_SALDO_PACIENTE_URL,
-    payload,
-    'CAJA_SALDO_PACIENTE'
-  );
+  const fullUrl = `${CAJA_SALDO_PACIENTE_URL}/${idPaciente}`;
+  return safeGetFullUrl(fullUrl, 'CAJA_SALDO_PACIENTE');
 }
 
 /*
@@ -135,6 +147,7 @@ async function obtenerSaldoCaja(idPaciente) {
 
 /*
   Bloquear un monto en Caja.
+  (Solo si en el futuro crean este endpoint)
   POST /api/caja/bloquear-monto
   body: { idPaciente, monto }
 */
@@ -194,17 +207,6 @@ async function crearCobroEnCaja({ idCita, idPaciente, monto, metodoPago }) {
 /*
   Sincronizar tratamiento con la API de Caja.
   POST /api/tratamientos/sync-desde-sigcd
-
-  tratamiento:
-  {
-    id_tratamiento,
-    cve_trat,
-    nombre,
-    descripcion,
-    precio_base,
-    duracion_min,
-    activo
-  }
 */
 async function sincronizarTratamientoEnCaja(tratamiento) {
   if (!tratamiento || !tratamiento.nombre) {
@@ -226,9 +228,9 @@ module.exports = {
   registrarPaciente,
   crearPresupuesto,
   obtenerSaldoPaciente,
-  obtenerSaldoCaja, // alias
+  obtenerSaldoCaja,
   bloquearMonto,
   crearCobroEnCaja,
   sincronizarTratamientoEnCaja,
 };
-// fin del documento
+//fin del documento 
