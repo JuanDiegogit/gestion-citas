@@ -230,3 +230,4 @@ export async function crearTratamiento(payload) {
 
 // Export default por si lo necesitas en algún punto
 export default api;
+//fin del documento

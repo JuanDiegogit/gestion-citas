@@ -1,16 +1,30 @@
 /* src/index.css
- ================== Estilos generales ================== */
+   ================== Reset básico ================== */
 *,
 *::before,
 *::after {
   box-sizing: border-box;
 }
 
+html,
 body {
   margin: 0;
-  background: #020617;
+  padding: 0;
+}
+
+/* ================== Estilos generales ================== */
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: radial-gradient(circle at top left, #020617 0, #020617 40%, #020817 70%, #000 100%);
   color: #e5e7eb;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+#root {
+  margin: 0;
+  padding: 0;
 }
 
 .app-shell {
@@ -22,36 +36,61 @@ body {
 /* ================== Header y navegación ================== */
 
 .app-header {
-  padding: 1rem 2rem;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  padding: 1rem 2rem 0.9rem;
   border-bottom: 1px solid #1f2937;
+  background: rgba(2, 6, 23, 0.94);
+  backdrop-filter: blur(10px);
 }
 
 .app-header h1 {
   margin: 0;
   font-size: 2rem;
+  letter-spacing: 0.02em;
 }
 
 .app-nav {
   margin-top: 0.75rem;
   display: flex;
   flex-wrap: wrap;
-  gap: 1.5rem;           /* separación entre Citas / Pacientes / etc. */
+  gap: 1.5rem; /* separación entre Citas / Pacientes / etc. */
 }
 
 .nav-link {
+  position: relative;
   font-size: 0.95rem;
   color: #e5e7eb;
   text-decoration: none;
+  padding-bottom: 0.2rem;
+  transition: color 0.18s ease, transform 0.18s ease;
+}
+
+.nav-link::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: -0.25rem;
+  width: 0;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(to right, #22c55e, #38bdf8);
+  transition: width 0.2s ease;
 }
 
 .nav-link:hover {
   color: #38bdf8;
+  transform: translateY(-1px);
 }
 
 .nav-link-active {
-  border-bottom: 2px solid #38bdf8;
-  padding-bottom: 0.15rem;
   font-weight: 600;
+  color: #e5e7eb;
+}
+
+.nav-link-active::after {
+  width: 100%;
 }
 
 /* ================== Contenido principal ================== */
@@ -61,29 +100,70 @@ body {
   padding: 1.5rem 2rem 2.5rem;
 }
 
-/* ================== Páginas de listado ================== */
-
-.citas-page {
+/* Contenedor general de páginas “centradas” */
+.citas-page,
+.page-container {
   max-width: 1100px;
   margin: 0 auto;
 }
 
-.citas-header h1 {
+.citas-header h1,
+.page-title {
   margin: 0 0 1rem;
   font-size: 1.6rem;
 }
 
-.page-title {
+/* ================== Secciones tipo “card” ================== */
+
+.section-card,
+.citas-filtros,
+.citas-tabla-section,
+.card,
+.form-card {
+  background-color: #020617;
+  border-radius: 0.75rem;
+  border: 1px solid #1f2937;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.9);
+}
+
+/* Ajustes específicos para las que ya existen */
+.citas-filtros {
+  margin-top: 0.75rem;
+  padding: 1.25rem 1.5rem;
+}
+
+.citas-tabla-section {
   margin-top: 1.5rem;
-  margin-bottom: 1rem;
+  padding: 1.25rem 1.5rem 1.5rem;
+}
+
+.form-card {
+  margin-top: 1.2rem;
+  max-width: 900px;
+  padding: 1.6rem 2rem;
+}
+
+/* PacienteNuevo usa .card / .page-header */
+.page-header {
+  margin-bottom: 1.25rem;
+}
+
+.page-header h2 {
+  margin: 0 0 0.35rem;
   font-size: 1.6rem;
 }
 
-/* ================== Filtros de listado ================== */
-
-.citas-filtros {
-  margin-top: 0.5rem;
+.page-header p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #9ca3af;
 }
+
+.card {
+  padding: 1.4rem 1.7rem;
+}
+
+/* ================== Filtros de listado ================== */
 
 .citas-filtros-form {
   display: flex;
@@ -101,20 +181,10 @@ body {
 .filtro-item label {
   margin-bottom: 0.25rem;
   font-size: 0.85rem;
+  color: #9ca3af;
 }
 
-/* ================== Tarjetas de formulario ================== */
-/* (nuevo paciente, médico, tratamiento, etc.) */
-
-.form-card {
-  margin-top: 1rem;
-  max-width: 900px;
-  background-color: #020617;
-  padding: 1.5rem 2rem;
-  border-radius: 0.75rem;
-  border: 1px solid #1f2937;
-  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.7);
-}
+/* ================== Formularios genéricos ================== */
 
 .form-grid {
   display: grid;
@@ -137,80 +207,142 @@ body {
   color: #e5e7eb;
 }
 
-/* ================== Inputs ================== */
-/* Texto, números, selects, etc. */
+/* PacienteNuevo: filas / labels / inputs */
+.form-row {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 0.9rem;
+}
 
-.form-field input[type="text"],
-.form-field input[type="number"],
-.form-field input[type="email"],
-.form-field input[type="datetime-local"],
-.form-field input[type="date"],
-.form-field input[type="tel"],
-.form-field input[type="password"],
+.form-label {
+  font-size: 0.9rem;
+  margin-bottom: 0.3rem;
+  color: #e5e7eb;
+}
+
+.required {
+  color: #f97373;
+  margin-left: 0.2rem;
+}
+
+/* ================== Inputs ================== */
+
+.form-field input[type='text'],
+.form-field input[type='number'],
+.form-field input[type='email'],
+.form-field input[type='datetime-local'],
+.form-field input[type='date'],
+.form-field input[type='tel'],
+.form-field input[type='password'],
 .form-field select,
-.form-field textarea {
+.form-field textarea,
+.form-row input,
+.form-row select,
+.form-row textarea,
+.form-input {
   width: 100%;
   padding: 0.4rem 0.6rem;
   font-size: 0.95rem;
-  border-radius: 4px;
+  border-radius: 6px;
   border: 1px solid #4b5563;
   background-color: #020617;
   color: #f9fafb;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
 }
 
-/* Checkbox: sin estirarse a todo el ancho (arregla lo de “activo”) */
+.form-field input:focus,
+.form-field select:focus,
+.form-field textarea:focus,
+.form-row input:focus,
+.form-row select:focus,
+.form-row textarea:focus,
+.form-input:focus {
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 1px #38bdf8;
+  background-color: #020617;
+}
 
-.form-field input[type="checkbox"] {
+/* Checkbox: sin estirarse a todo el ancho */
+.form-field input[type='checkbox'],
+.form-row input[type='checkbox'] {
   width: auto;
   height: auto;
 }
 
 /* Textarea un poco más alta */
-
-.form-field textarea {
+.form-field textarea,
+.form-row textarea {
   min-height: 80px;
   resize: vertical;
 }
 
 /* ================== Botones ================== */
 
-.btn-primary {
-  margin-top: 0.75rem;
-  padding: 0.45rem 0.9rem;
-  border-radius: 4px;
+.btn-primary,
+.btn-secondary,
+.btn,
+.form-actions button {
+  font-size: 0.9rem;
+  padding: 0.42rem 0.9rem;
+  border-radius: 999px;
   border: 1px solid transparent;
-  background-color: #22c55e;
-  color: #022c22;
-  font-weight: 600;
   cursor: pointer;
+  transition: background-color 0.18s ease, border-color 0.18s ease,
+    transform 0.12s ease, box-shadow 0.18s ease, color 0.18s ease;
 }
 
-.btn-primary:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+.btn-primary {
+  margin-top: 0.2rem;
+  background: linear-gradient(to right, #22c55e, #16a34a);
+  color: #022c22;
+  font-weight: 600;
+  box-shadow: 0 12px 30px rgba(22, 163, 74, 0.3);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: linear-gradient(to right, #16a34a, #22c55e);
+  transform: translateY(-1px);
+  box-shadow: 0 16px 40px rgba(22, 163, 74, 0.4);
 }
 
 .btn-secondary {
-  padding: 0.4rem 0.9rem;
-  border-radius: 4px;
-  border: 1px solid #4b5563;
   background-color: #020617;
+  border-color: #4b5563;
   color: #e5e7eb;
-  cursor: pointer;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  border-color: #9ca3af;
+  background-color: #020617;
 }
 
 .btn {
-  padding: 0.35rem 0.8rem;
-  border-radius: 4px;
-  border: 1px solid #4b5563;
   background-color: #020617;
+  border-color: #4b5563;
   color: #e5e7eb;
-  cursor: pointer;
 }
 
-.btn:disabled {
-  opacity: 0.5;
+.btn:hover:not(:disabled) {
+  border-color: #9ca3af;
+  background-color: #020617;
+  transform: translateY(-1px);
+}
+
+.btn:disabled,
+.btn-primary:disabled,
+.btn-secondary:disabled {
+  opacity: 0.55;
   cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Acciones de formularios tipo PacienteNuevo */
+.form-actions {
+  margin-top: 1rem;
+  display: flex;
+  gap: 0.75rem;
 }
 
 /* ================== Badges (chips para estados) ================== */
@@ -218,14 +350,13 @@ body {
 .badge {
   display: inline-flex;
   align-items: center;
-  padding: 0.15rem 0.5rem;
+  padding: 0.15rem 0.6rem;
   border-radius: 999px;
   font-size: 0.75rem;
   font-weight: 500;
   border: 1px solid transparent;
 }
 
-/* genéricos */
 .badge-success {
   background-color: #064e3b;
   border-color: #16a34a;
@@ -256,7 +387,7 @@ body {
   color: #bae6fd;
 }
 
-/* por tipo de estado de cita (por si los usas así en las clases) */
+/* Por tipo de estado de cita (si luego los usas por nombre) */
 .badge-programada {
   background-color: #0b1120;
   border-color: #38bdf8;
@@ -283,18 +414,16 @@ body {
 
 /* ================== Tablas ================== */
 
-.citas-tabla-section {
-  margin-top: 1.5rem;
-}
-
 .citas-tabla {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.9rem;
+  border-radius: 0.75rem;
+  overflow: hidden;
 }
 
 .citas-tabla thead {
-  background-color: #020617;
+  background: radial-gradient(circle at top left, #020617, #020617 60%, #020617 100%);
 }
 
 .citas-tabla th,
@@ -306,6 +435,22 @@ body {
 
 .citas-tabla th {
   font-weight: 600;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #9ca3af;
+}
+
+.citas-tabla tbody tr:nth-child(odd) {
+  background-color: #020617;
+}
+
+.citas-tabla tbody tr:nth-child(even) {
+  background-color: #020814;
+}
+
+.citas-tabla tbody tr:hover {
+  background-color: #020b23;
 }
 
 /* ================== Paginación ================== */
@@ -338,7 +483,8 @@ body {
     padding: 1rem 1.25rem 2rem;
   }
 
-  .form-card {
+  .form-card,
+  .card {
     padding: 1rem 1.25rem;
   }
 
