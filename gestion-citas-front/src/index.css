@@ -501,4 +501,140 @@ body {
     justify-content: center;
   }
 }
+
+/* ================== Detalle de cita ================== */
+
+.detail-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.detail-header-top {
+  margin-bottom: 0.3rem;
+}
+
+.btn-back {
+  padding-inline: 0.75rem;
+}
+
+.detail-header-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 1rem;
+}
+
+.detail-header-main h2 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.detail-subtitle {
+  margin: 0.15rem 0 0;
+  font-size: 0.88rem;
+  color: #9ca3af;
+}
+
+.detail-folio {
+  font-weight: 600;
+  color: #e5e7eb;
+}
+
+.detail-header-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.detail-layout {
+  margin-top: 0.75rem;
+  display: grid;
+  grid-template-columns: minmax(0, 2.1fr) minmax(0, 1.6fr);
+  gap: 1.25rem;
+}
+
+.detail-section {
+  padding: 1.3rem 1.6rem;
+}
+
+.detail-section-title {
+  margin: 0 0 0.65rem;
+  font-size: 1rem;
+}
+
+.detail-subtitle-2 {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #e5e7eb;
+}
+
+.kv-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.9rem;
+}
+
+.kv-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.kv-label {
+  color: #9ca3af;
+}
+
+.kv-value {
+  font-weight: 500;
+  text-align: right;
+}
+
+.detail-subcard {
+  margin-top: 0.85rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid #1f2937;
+}
+
+.detail-actions {
+  margin-top: 0.9rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.detail-sections-row {
+  margin-top: 1.1rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.25rem;
+}
+
+/* Responsive ajustes para el detalle */
+@media (max-width: 900px) {
+  .detail-header-main {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .detail-header-meta {
+    justify-content: flex-start;
+  }
+
+  .detail-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-sections-row {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-section {
+    padding: 1rem 1.25rem;
+  }
+}
+
 /* Fin del documento */

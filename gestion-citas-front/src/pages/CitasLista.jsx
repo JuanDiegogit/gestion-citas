@@ -101,7 +101,6 @@ export default function CitasLista() {
   function formatearFecha(fechaIso) {
     if (!fechaIso) return '';
     const fecha = new Date(fechaIso);
-    // Puedes ajustar la zona/localización si lo necesitas
     return fecha.toLocaleString('es-MX', {
       year: 'numeric',
       month: '2-digit',
@@ -122,6 +121,35 @@ export default function CitasLista() {
       case 'SIN_PAGO':
       default:
         return 'SIN PAGO';
+    }
+  }
+
+  function getEstadoCitaBadgeClass(estado) {
+    switch (estado) {
+      case 'PROGRAMADA':
+        return 'badge-programada';
+      case 'CONFIRMADA':
+        return 'badge-confirmada';
+      case 'CANCELADA':
+        return 'badge-cancelada';
+      case 'ATENDIDA':
+        return 'badge-atendida';
+      default:
+        return 'badge-muted';
+    }
+  }
+
+  function getEstadoPagoBadgeClass(estadoPago) {
+    switch (estadoPago) {
+      case 'PAGADO':
+        return 'badge-success';
+      case 'PAGO_PARCIAL':
+        return 'badge-warning';
+      case 'PENDIENTE':
+        return 'badge-danger';
+      case 'SIN_PAGO':
+      default:
+        return 'badge-muted';
     }
   }
 
@@ -250,6 +278,8 @@ export default function CitasLista() {
                     .join(' ');
 
                   const estadoPagoCajaTexto = getTextoEstadoPago(cita.estado_pago);
+                  const estadoCitaClass = getEstadoCitaBadgeClass(cita.estado_cita);
+                  const estadoPagoClass = getEstadoPagoBadgeClass(cita.estado_pago);
 
                   return (
                     <tr key={cita.id_cita}>
@@ -257,8 +287,16 @@ export default function CitasLista() {
                       <td>{fechaStr}</td>
                       <td>{nombrePaciente || '-'}</td>
                       <td>{nombreMedico || '-'}</td>
-                      <td>{cita.estado_cita}</td>
-                      <td>{estadoPagoCajaTexto}</td>
+                      <td>
+                        <span className={`badge ${estadoCitaClass}`}>
+                          {cita.estado_cita}
+                        </span>
+                      </td>
+                      <td>
+                        <span className={`badge ${estadoPagoClass}`}>
+                          {estadoPagoCajaTexto}
+                        </span>
+                      </td>
                       <td
                         style={{
                           display: 'flex',
@@ -333,4 +371,4 @@ export default function CitasLista() {
     </div>
   );
 }
-// fin del documento
+//fin del documento

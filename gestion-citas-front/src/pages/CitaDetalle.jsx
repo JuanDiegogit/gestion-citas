@@ -5,11 +5,11 @@ import {
   fetchCitaDetalle,
   registrarPagoParcial,
   registrarPagoAnticipoEnCaja,
-  obtenerSaldoPacienteCaja, // usa saldo desde Caja
+  obtenerSaldoPacienteCaja,
 } from '../api/citasApi';
 
 function CitaDetalle() {
-  const { id } = useParams(); // id de la cita desde la ruta
+  const { id } = useParams();
   const navigate = useNavigate();
 
   const [cita, setCita] = useState(null);
@@ -18,12 +18,10 @@ function CitaDetalle() {
   const [error, setError] = useState('');
   const [infoMsg, setInfoMsg] = useState('');
 
-  // estado para el saldo de Caja (API caja-facturación)
   const [saldoCaja, setSaldoCaja] = useState(null);
   const [loadingSaldoCaja, setLoadingSaldoCaja] = useState(false);
   const [saldoCajaError, setSaldoCajaError] = useState('');
 
-  // Cargar detalle de la cita al entrar
   useEffect(() => {
     async function load() {
       try {
@@ -36,22 +34,19 @@ function CitaDetalle() {
         const data = await fetchCitaDetalle(id);
         setCita(data);
 
-        // Si hay paciente, consultamos también el saldo en Caja
         if (data?.paciente?.id_paciente) {
           try {
             setLoadingSaldoCaja(true);
             const saldo = await obtenerSaldoPacienteCaja(
               data.paciente.id_paciente
             );
-            // Se asume que Caja responde algo tipo:
-            // { totalTratamientos, totalPagado, saldoPendiente }
             setSaldoCaja(saldo || null);
           } catch (errSaldo) {
             console.error('[CitaDetalle] Error cargando saldo desde Caja:', errSaldo);
             setSaldoCajaError(
               errSaldo?.response?.data?.message ||
-                errSaldo?.message ||
-                'No se pudo cargar el saldo desde Caja.'
+              errSaldo?.message ||
+              'No se pudo cargar el saldo desde Caja.'
             );
           } finally {
             setLoadingSaldoCaja(false);
@@ -61,8 +56,8 @@ function CitaDetalle() {
         console.error('[CitaDetalle] Error cargando cita:', err);
         setError(
           err?.response?.data?.message ||
-            err?.message ||
-            'Error al cargar el detalle de la cita'
+          err?.message ||
+          'Error al cargar el detalle de la cita'
         );
       } finally {
         setLoading(false);
@@ -76,7 +71,42 @@ function CitaDetalle() {
     if (!value) return '-';
     const d = new Date(value);
     if (Number.isNaN(d.getTime())) return String(value);
-    return d.toLocaleString();
+    return d.toLocaleString('es-MX', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }
+
+  function getEstadoCitaBadgeClass(estado) {
+    switch (estado) {
+      case 'PROGRAMADA':
+        return 'badge-programada';
+      case 'CONFIRMADA':
+        return 'badge-confirmada';
+      case 'CANCELADA':
+        return 'badge-cancelada';
+      case 'ATENDIDA':
+        return 'badge-atendida';
+      default:
+        return 'badge-muted';
+    }
+  }
+
+  function getEstadoPagoBadgeClass(estadoPago) {
+    switch (estadoPago) {
+      case 'PAGADO':
+        return 'badge-success';
+      case 'PAGO_PARCIAL':
+        return 'badge-warning';
+      case 'PENDIENTE':
+        return 'badge-danger';
+      case 'SIN_PAGO':
+      default:
+        return 'badge-muted';
+    }
   }
 
   async function handleRegistrarPagoParcial() {
@@ -87,7 +117,6 @@ function CitaDetalle() {
     );
 
     if (montoStr === null) {
-      // cancelado
       return;
     }
 
@@ -104,11 +133,9 @@ function CitaDetalle() {
 
       const resp = await registrarPagoParcial(cita.id_cita, {
         monto: montoNum,
-        // puedes cambiar el origen si gustas: 'CAJA', 'EFECTIVO', etc.
         origen: 'CAJA',
       });
 
-      // Actualizamos sólo los campos relacionados al pago de la cita
       setCita((prev) =>
         prev
           ? {
@@ -121,14 +148,13 @@ function CitaDetalle() {
       );
 
       setInfoMsg(resp.message || 'Pago registrado correctamente');
-      // Opcional: aquí podrías volver a pedir saldo a Caja si quieres refrescar datos globales
     } catch (err) {
       console.error('[CitaDetalle] Error registrando pago parcial:', err);
       setError(
         err?.response?.data?.error ||
-          err?.response?.data?.message ||
-          err?.message ||
-          'Error al registrar el pago parcial'
+        err?.response?.data?.message ||
+        err?.message ||
+        'Error al registrar el pago parcial'
       );
     } finally {
       setSaving(false);
@@ -150,15 +176,14 @@ function CitaDetalle() {
 
       const resp = await registrarPagoAnticipoEnCaja(cita.id_cita);
 
-      // resp.mensaje y resp.caja.* según lo que regrese tu backend
       setInfoMsg(resp.mensaje || 'Cobro enviado a Caja');
     } catch (err) {
       console.error('[CitaDetalle] Error registrando anticipo en Caja:', err);
       setError(
         err?.response?.data?.error ||
-          err?.response?.data?.message ||
-          err?.message ||
-          'Error al registrar el anticipo en Caja'
+        err?.response?.data?.message ||
+        err?.message ||
+        'Error al registrar el anticipo en Caja'
       );
     } finally {
       setSaving(false);
@@ -166,23 +191,33 @@ function CitaDetalle() {
   }
 
   if (loading) {
-    return <div>Cargando detalle de la cita...</div>;
+    return <div className="page-container"><p>Cargando detalle de la cita...</p></div>;
   }
 
   if (error && !cita) {
     return (
-      <div>
-        <p style={{ color: 'red' }}>{error}</p>
-        <button onClick={() => navigate(-1)}>Volver</button>
+      <div className="page-container">
+        <button
+          className="btn-secondary btn-back"
+          onClick={() => navigate(-1)}
+        >
+          ← Volver
+        </button>
+        <p className="error-text">{error}</p>
       </div>
     );
   }
 
   if (!cita) {
     return (
-      <div>
+      <div className="page-container">
+        <button
+          className="btn-secondary btn-back"
+          onClick={() => navigate(-1)}
+        >
+          ← Volver
+        </button>
         <p>No se encontró la cita.</p>
-        <button onClick={() => navigate(-1)}>Volver</button>
       </div>
     );
   }
@@ -202,208 +237,316 @@ function CitaDetalle() {
     anticipo,
   } = cita;
 
+  const estadoCitaClass = getEstadoCitaBadgeClass(estado_cita);
+  const estadoPagoClass = getEstadoPagoBadgeClass(estado_pago);
+
   return (
-    <div style={{ padding: '1rem' }}>
-      <h2>Detalle de la Cita</h2>
+    <div className="page-container">
+      <header className="page-header detail-header">
+        <div className="detail-header-top">
+          <button
+            className="btn-secondary btn-back"
+            type="button"
+            onClick={() => navigate(-1)}
+          >
+            ← Volver
+          </button>
+        </div>
 
-      <button onClick={() => navigate(-1)} style={{ marginBottom: '1rem' }}>
-        ← Volver
-      </button>
+        <div className="detail-header-main">
+          <div>
+            <h2>Detalle de la cita</h2>
+            <p className="detail-subtitle">
+              Folio <span className="detail-folio">{folio_cita}</span>
+            </p>
+          </div>
+          <div className="detail-header-meta">
+            {estado_cita && (
+              <span className={`badge ${estadoCitaClass}`}>
+                {estado_cita}
+              </span>
+            )}
+            {estado_pago && (
+              <span className={`badge ${estadoPagoClass}`}>
+                {estado_pago}
+              </span>
+            )}
+          </div>
+        </div>
+      </header>
 
-      {error && <p style={{ color: 'red' }}>{error}</p>}
-      {infoMsg && <p style={{ color: 'green' }}>{infoMsg}</p>}
+      {error && <p className="error-text">{error}</p>}
+      {infoMsg && <p className="success-text">{infoMsg}</p>}
       {saving && <p>Guardando cambios...</p>}
 
-      <section style={{ marginBottom: '1rem' }}>
-        <h3>Datos generales</h3>
-        <p>
-          <strong>Folio:</strong> {folio_cita}
-        </p>
-        <p>
-          <strong>Fecha registro:</strong> {formatDateTime(fecha_registro)}
-        </p>
-        <p>
-          <strong>Fecha cita:</strong> {formatDateTime(fecha_cita)}
-        </p>
-        <p>
-          <strong>Estado cita:</strong> {estado_cita}
-        </p>
-        <p>
-          <strong>Estado pago:</strong> {estado_pago}
-        </p>
-      </section>
+      {/* Layout principal: info general + pagos */}
+      <div className="detail-layout">
+        {/* Columna izquierda */}
+        <section className="card detail-section">
+          <h3 className="detail-section-title">Datos generales</h3>
+          <div className="kv-list">
+            <div className="kv-row">
+              <span className="kv-label">Fecha de registro</span>
+              <span className="kv-value">{formatDateTime(fecha_registro)}</span>
+            </div>
+            <div className="kv-row">
+              <span className="kv-label">Fecha de la cita</span>
+              <span className="kv-value">{formatDateTime(fecha_cita)}</span>
+            </div>
+            <div className="kv-row">
+              <span className="kv-label">Motivo</span>
+              <span className="kv-value">
+                {cita.motivo_cita || '—'}
+              </span>
+            </div>
+            <div className="kv-row">
+              <span className="kv-label">Medio de solicitud</span>
+              <span className="kv-value">
+                {cita.medio_solicitud || '—'}
+              </span>
+            </div>
+            <div className="kv-row">
+              <span className="kv-label">Observaciones</span>
+              <span className="kv-value">
+                {cita.observaciones || '—'}
+              </span>
+            </div>
+          </div>
+        </section>
 
-      <section style={{ marginBottom: '1rem' }}>
-        <h3>Paciente</h3>
-        <p>
-          <strong>Nombre:</strong>{' '}
-          {paciente ? `${paciente.nombre} ${paciente.apellidos || ''}` : '-'}
-        </p>
-        <p>
-          <strong>Teléfono:</strong> {paciente?.telefono || '-'}
-        </p>
-        <p>
-          <strong>Email:</strong> {paciente?.email || '-'}
-        </p>
-        <p>
-          <strong>Canal preferente:</strong> {paciente?.canal_preferente || '-'}
-        </p>
-      </section>
+        {/* Columna derecha: pagos + Caja */}
+        <section className="card detail-section">
+          <h3 className="detail-section-title">Información de pago</h3>
 
-      <section style={{ marginBottom: '1rem' }}>
-        <h3>Médico</h3>
-        <p>
-          <strong>Nombre:</strong>{' '}
-          {medico ? `${medico.nombre} ${medico.apellidos || ''}` : '-'}
-        </p>
-        <p>
-          <strong>Especialidad:</strong> {medico?.especialidad || '-'}
-        </p>
-        <p>
-          <strong>Cédula:</strong> {medico?.cedula_profesional || '-'}
-        </p>
-      </section>
+          <div className="kv-list">
+            <div className="kv-row">
+              <span className="kv-label">Monto cobro</span>
+              <span className="kv-value">
+                {monto_cobro != null
+                  ? `$${Number(monto_cobro).toFixed(2)}`
+                  : '—'}
+              </span>
+            </div>
+            <div className="kv-row">
+              <span className="kv-label">Monto pagado (cita)</span>
+              <span className="kv-value">
+                {monto_pagado != null
+                  ? `$${Number(monto_pagado).toFixed(2)}`
+                  : '$0.00'}
+              </span>
+            </div>
+            <div className="kv-row">
+              <span className="kv-label">Saldo pendiente (cita)</span>
+              <span className="kv-value">
+                {saldo_pendiente != null
+                  ? `$${Number(saldo_pendiente).toFixed(2)}`
+                  : '—'}
+              </span>
+            </div>
+          </div>
 
-      <section style={{ marginBottom: '1rem' }}>
-        <h3>Tratamiento</h3>
-        <p>
-          <strong>Clave:</strong> {tratamiento?.cve_trat || '-'}
-        </p>
-        <p>
-          <strong>Nombre:</strong> {tratamiento?.nombre || '-'}
-        </p>
-        <p>
-          <strong>Descripción:</strong> {tratamiento?.descripcion || '-'}
-        </p>
-        <p>
-          <strong>Precio base:</strong>{' '}
-          {tratamiento?.precio_base != null
-            ? `$${Number(tratamiento.precio_base).toFixed(2)}`
-            : '-'}
-        </p>
-      </section>
+          <div className="detail-subcard">
+            <h4 className="detail-subtitle-2">
+              Saldos en Caja (API caja-facturación)
+            </h4>
 
-      <section style={{ marginBottom: '1rem' }}>
-        <h3>Información de pago</h3>
-        <p>
-          <strong>Monto cobro:</strong>{' '}
-          {monto_cobro != null ? `$${Number(monto_cobro).toFixed(2)}` : '-'}
-        </p>
-        <p>
-          <strong>Monto pagado (cita):</strong>{' '}
-          {monto_pagado != null
-            ? `$${Number(monto_pagado).toFixed(2)}`
-            : '$0.00'}
-        </p>
-        <p>
-          <strong>Saldo pendiente (cita):</strong>{' '}
-          {saldo_pendiente != null
-            ? `$${Number(saldo_pendiente).toFixed(2)}`
-            : '-'}
-        </p>
+            {loadingSaldoCaja && <p>Cargando saldo desde Caja…</p>}
 
-        {/* Bloque con info en vivo desde CAJA */}
-        <div
-          style={{
-            marginTop: '0.75rem',
-            padding: '0.5rem 0.75rem',
-            borderRadius: '6px',
-            border: '1px solid #4b5563',
-            backgroundColor: '#020617',
-          }}
-        >
-          <h4 style={{ marginTop: 0, marginBottom: '0.35rem' }}>
-            Saldos en Caja (API caja-facturación)
-          </h4>
-
-          {loadingSaldoCaja && <p>Cargando saldo desde Caja…</p>}
-
-          {saldoCajaError && (
-            <p style={{ color: 'orange' }}>{saldoCajaError}</p>
-          )}
-
-          {!loadingSaldoCaja && !saldoCajaError && saldoCaja && (
-            <>
-              <p>
-                <strong>Total tratamientos (Caja):</strong>{' '}
-                {saldoCaja.totalTratamientos != null
-                  ? `$${Number(saldoCaja.totalTratamientos).toFixed(2)}`
-                  : '-'}
+            {saldoCajaError && (
+              <p className="error-text" style={{ marginTop: '0.3rem' }}>
+                {saldoCajaError}
               </p>
+            )}
 
-              <p>
-                <strong>Total pagado (Caja):</strong>{' '}
-                {saldoCaja.totalPagado != null
-                  ? `$${Number(saldoCaja.totalPagado).toFixed(2)}`
-                  : '-'}
+            {!loadingSaldoCaja && !saldoCajaError && saldoCaja && (
+              <div className="kv-list" style={{ marginTop: '0.4rem' }}>
+                <div className="kv-row">
+                  <span className="kv-label">Total tratamientos (Caja)</span>
+                  <span className="kv-value">
+                    {saldoCaja.totalTratamientos != null
+                      ? `$${Number(saldoCaja.totalTratamientos).toFixed(2)}`
+                      : '—'}
+                  </span>
+                </div>
+                <div className="kv-row">
+                  <span className="kv-label">Total pagado (Caja)</span>
+                  <span className="kv-value">
+                    {saldoCaja.totalPagado != null
+                      ? `$${Number(saldoCaja.totalPagado).toFixed(2)}`
+                      : '—'}
+                  </span>
+                </div>
+                <div className="kv-row">
+                  <span className="kv-label">Saldo pendiente (Caja)</span>
+                  <span className="kv-value">
+                    {saldoCaja.saldoPendiente != null
+                      ? `$${Number(saldoCaja.saldoPendiente).toFixed(2)}`
+                      : '—'}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {!loadingSaldoCaja && !saldoCajaError && !saldoCaja && (
+              <p style={{ marginTop: '0.3rem' }}>
+                No se obtuvo información de Caja para este paciente.
               </p>
+            )}
+          </div>
 
-              <p>
-                <strong>Saldo pendiente (Caja):</strong>{' '}
-                {saldoCaja.saldoPendiente != null
-                  ? `$${Number(saldoCaja.saldoPendiente).toFixed(2)}`
-                  : '-'}
-              </p>
-            </>
-          )}
-
-          {!loadingSaldoCaja && !saldoCajaError && !saldoCaja && (
-            <p>No se obtuvo información de Caja para este paciente.</p>
-          )}
-        </div>
-
-        <div style={{ marginTop: '0.75rem' }}>
-          <button
-            onClick={handleRegistrarPagoParcial}
-            disabled={saving}
-            style={{ marginRight: '0.5rem' }}
-          >
-            Registrar pago parcial
-          </button>
-
-          {anticipo && anticipo.estado === 'PENDIENTE' && (
+          <div className="detail-actions">
             <button
-              onClick={handleRegistrarPagoAnticipoEnCaja}
+              onClick={handleRegistrarPagoParcial}
               disabled={saving}
+              className="btn"
+              type="button"
             >
-              Enviar anticipo a Caja
+              Registrar pago parcial
             </button>
-          )}
-        </div>
-      </section>
 
-      <section>
-        <h3>Anticipo</h3>
-        {anticipo ? (
-          <>
-            <p>
-              <strong>Monto anticipo:</strong>{' '}
-              {anticipo.monto_anticipo != null
-                ? `$${Number(anticipo.monto_anticipo).toFixed(2)}`
-                : '-'}
-            </p>
-            <p>
-              <strong>Estado:</strong> {anticipo.estado}
-            </p>
-            <p>
-              <strong>ID pago Caja:</strong> {anticipo.id_pago_caja || '-'}
-            </p>
-            <p>
-              <strong>Fecha solicitud:</strong>{' '}
-              {formatDateTime(anticipo.fecha_solicitud)}
-            </p>
-            <p>
-              <strong>Fecha confirmación:</strong>{' '}
-              {formatDateTime(anticipo.fecha_confirmacion)}
-            </p>
-          </>
-        ) : (
-          <p>No hay anticipo registrado para esta cita.</p>
-        )}
-      </section>
+            {anticipo && anticipo.estado === 'PENDIENTE' && (
+              <button
+                onClick={handleRegistrarPagoAnticipoEnCaja}
+                disabled={saving}
+                className="btn"
+                type="button"
+              >
+                Enviar anticipo a Caja
+              </button>
+            )}
+          </div>
+        </section>
+      </div>
+
+      {/* Segunda fila: paciente / médico / tratamiento / anticipo */}
+      <div className="detail-sections-row">
+        <section className="card detail-section">
+          <h3 className="detail-section-title">Paciente</h3>
+          <div className="kv-list">
+            <div className="kv-row">
+              <span className="kv-label">Nombre</span>
+              <span className="kv-value">
+                {paciente
+                  ? `${paciente.nombre} ${paciente.apellidos || ''}`
+                  : '—'}
+              </span>
+            </div>
+            <div className="kv-row">
+              <span className="kv-label">Teléfono</span>
+              <span className="kv-value">{paciente?.telefono || '—'}</span>
+            </div>
+            <div className="kv-row">
+              <span className="kv-label">Email</span>
+              <span className="kv-value">{paciente?.email || '—'}</span>
+            </div>
+            <div className="kv-row">
+              <span className="kv-label">Canal preferente</span>
+              <span className="kv-value">
+                {paciente?.canal_preferente || '—'}
+              </span>
+            </div>
+          </div>
+        </section>
+
+        <section className="card detail-section">
+          <h3 className="detail-section-title">Médico</h3>
+          <div className="kv-list">
+            <div className="kv-row">
+              <span className="kv-label">Nombre</span>
+              <span className="kv-value">
+                {medico
+                  ? `${medico.nombre} ${medico.apellidos || ''}`
+                  : '—'}
+              </span>
+            </div>
+            <div className="kv-row">
+              <span className="kv-label">Especialidad</span>
+              <span className="kv-value">
+                {medico?.especialidad || '—'}
+              </span>
+            </div>
+            <div className="kv-row">
+              <span className="kv-label">Cédula</span>
+              <span className="kv-value">
+                {medico?.cedula_profesional || '—'}
+              </span>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div className="detail-sections-row">
+        <section className="card detail-section detail-section-full">
+          <h3 className="detail-section-title">Tratamiento</h3>
+          <div className="kv-list">
+            <div className="kv-row">
+              <span className="kv-label">Clave</span>
+              <span className="kv-value">{tratamiento?.cve_trat || '—'}</span>
+            </div>
+            <div className="kv-row">
+              <span className="kv-label">Nombre</span>
+              <span className="kv-value">{tratamiento?.nombre || '—'}</span>
+            </div>
+            <div className="kv-row">
+              <span className="kv-label">Descripción</span>
+              <span className="kv-value">
+                {tratamiento?.descripcion || '—'}
+              </span>
+            </div>
+            <div className="kv-row">
+              <span className="kv-label">Precio base</span>
+              <span className="kv-value">
+                {tratamiento?.precio_base != null
+                  ? `$${Number(tratamiento.precio_base).toFixed(2)}`
+                  : '—'}
+              </span>
+            </div>
+          </div>
+        </section>
+
+        <section className="card detail-section detail-section-full">
+          <h3 className="detail-section-title">Anticipo</h3>
+          {anticipo ? (
+            <div className="kv-list">
+              <div className="kv-row">
+                <span className="kv-label">Monto anticipo</span>
+                <span className="kv-value">
+                  {anticipo.monto_anticipo != null
+                    ? `$${Number(anticipo.monto_anticipo).toFixed(2)}`
+                    : '—'}
+                </span>
+              </div>
+              <div className="kv-row">
+                <span className="kv-label">Estado</span>
+                <span className="kv-value">{anticipo.estado}</span>
+              </div>
+              <div className="kv-row">
+                <span className="kv-label">ID pago Caja</span>
+                <span className="kv-value">
+                  {anticipo.id_pago_caja || '—'}
+                </span>
+              </div>
+              <div className="kv-row">
+                <span className="kv-label">Fecha solicitud</span>
+                <span className="kv-value">
+                  {formatDateTime(anticipo.fecha_solicitud)}
+                </span>
+              </div>
+              <div className="kv-row">
+                <span className="kv-label">Fecha confirmación</span>
+                <span className="kv-value">
+                  {formatDateTime(anticipo.fecha_confirmacion)}
+                </span>
+              </div>
+            </div>
+          ) : (
+            <p>No hay anticipo registrado para esta cita.</p>
+          )}
+        </section>
+      </div>
     </div>
   );
 }
 
 export default CitaDetalle;
-// fin del documento
+//fin del documento 
