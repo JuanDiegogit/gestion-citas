@@ -18,6 +18,10 @@ const ATENCION_CLINICA_TRATAMIENTOS_URL =
   process.env.ATENCION_CLINICA_TRATAMIENTOS_URL ||
   'http://apiatencionclinica.rtakabinetsolutions.com/api/atencion/integracion/tratamientos';
 
+ const CAJA_SALDO_PACIENTE_URL= 
+  process.env.CAJA_SALDO_PACIENTE_URL ||
+  'https://caja.rtakabinetsolutions.com/api/integracion/saldo-paciente';
+
 module.exports = {
   PORT,
   CAJA_BASE_URL,

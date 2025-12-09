@@ -5,6 +5,7 @@ import {
   fetchCitaDetalle,
   registrarPagoParcial,
   registrarPagoAnticipoEnCaja,
+  obtenerSaldoPacienteCaja, // <<< importante: usar saldo desde Caja
 } from '../api/citasApi';
 
 function CitaDetalle() {
@@ -17,14 +18,48 @@ function CitaDetalle() {
   const [error, setError] = useState('');
   const [infoMsg, setInfoMsg] = useState('');
 
+  // estado para el saldo de Caja (API caja-facturación)
+  const [saldoCaja, setSaldoCaja] = useState(null);
+  const [loadingSaldoCaja, setLoadingSaldoCaja] = useState(false);
+  const [saldoCajaError, setSaldoCajaError] = useState('');
+
   // Cargar detalle de la cita al entrar
   useEffect(() => {
     async function load() {
       try {
         setLoading(true);
         setError('');
+        setInfoMsg('');
+        setSaldoCaja(null);
+        setSaldoCajaError('');
+
         const data = await fetchCitaDetalle(id);
         setCita(data);
+
+        // Si hay paciente, consultamos también el saldo en Caja
+        if (data?.paciente?.id_paciente) {
+          try {
+            setLoadingSaldoCaja(true);
+            const saldo = await obtenerSaldoPacienteCaja(
+              data.paciente.id_paciente
+            );
+            // saldo es lo que responda Caja: se asume algo tipo:
+            // { saldo_paciente, total_tratamientos, total_pagado, saldo_pendiente }
+            setSaldoCaja(saldo || null);
+          } catch (errSaldo) {
+            console.error(
+              '[CitaDetalle] Error cargando saldo desde Caja:',
+              errSaldo
+            );
+            setSaldoCajaError(
+              errSaldo?.response?.data?.message ||
+                errSaldo?.message ||
+                'No se pudo cargar el saldo desde Caja.'
+            );
+          } finally {
+            setLoadingSaldoCaja(false);
+          }
+        }
       } catch (err) {
         console.error('[CitaDetalle] Error cargando cita:', err);
         setError(
@@ -76,15 +111,6 @@ function CitaDetalle() {
         origen: 'CAJA',
       });
 
-      // resp = {
-      //   message,
-      //   id_cita,
-      //   id_pago_cita,
-      //   estado_pago,
-      //   monto_pagado,
-      //   saldo_pendiente,
-      // }
-
       // Actualizamos sólo los campos relacionados al pago
       setCita((prev) =>
         prev
@@ -98,6 +124,7 @@ function CitaDetalle() {
       );
 
       setInfoMsg(resp.message || 'Pago registrado correctamente');
+      // Opcional: si quieres, podrías volver a pedir saldo a Caja aquí.
     } catch (err) {
       console.error('[CitaDetalle] Error registrando pago parcial:', err);
       setError(
@@ -172,7 +199,7 @@ function CitaDetalle() {
     monto_cobro,
     monto_pagado,
     saldo_pendiente,
-    saldo_paciente,
+    saldo_paciente, // este viene de SIGCD (columna en tabla citas)
     paciente,
     medico,
     tratamiento,
@@ -271,23 +298,83 @@ function CitaDetalle() {
           {monto_cobro != null ? `$${Number(monto_cobro).toFixed(2)}` : '-'}
         </p>
         <p>
-          <strong>Monto pagado:</strong>{' '}
-          {monto_pagado != null ? `$${Number(monto_pagado).toFixed(2)}` : '$0.00'}
+          <strong>Monto pagado (cita):</strong>{' '}
+          {monto_pagado != null
+            ? `$${Number(monto_pagado).toFixed(2)}`
+            : '$0.00'}
         </p>
         <p>
-          <strong>Saldo pendiente:</strong>{' '}
+          <strong>Saldo pendiente (cita):</strong>{' '}
           {saldo_pendiente != null
             ? `$${Number(saldo_pendiente).toFixed(2)}`
             : '-'}
         </p>
         <p>
-          <strong>Saldo paciente (general):</strong>{' '}
+          <strong>Saldo paciente (guardado en SIGCD):</strong>{' '}
           {saldo_paciente != null
             ? `$${Number(saldo_paciente).toFixed(2)}`
             : '-'}
         </p>
 
-        <div style={{ marginTop: '0.5rem' }}>
+        {/* Bloque con info en vivo desde CAJA */}
+        <div
+          style={{
+            marginTop: '0.75rem',
+            padding: '0.5rem 0.75rem',
+            borderRadius: '6px',
+            border: '1px solid #4b5563',
+            backgroundColor: '#020617',
+          }}
+        >
+          <h4 style={{ marginTop: 0, marginBottom: '0.35rem' }}>
+            Saldos en Caja (API caja-facturación)
+          </h4>
+
+          {loadingSaldoCaja && <p>Cargando saldo desde Caja…</p>}
+
+          {saldoCajaError && (
+            <p style={{ color: 'orange' }}>{saldoCajaError}</p>
+          )}
+
+          {!loadingSaldoCaja && !saldoCajaError && saldoCaja && (
+            <>
+              <p>
+                <strong>Saldo paciente (Caja):</strong>{' '}
+                {saldoCaja.saldo_paciente != null
+                  ? `$${Number(saldoCaja.saldo_paciente).toFixed(2)}`
+                  : '-'}
+              </p>
+              <p>
+                <strong>Total tratamientos (Caja):</strong>{' '}
+                {saldoCaja.total_tratamientos != null
+                  ? `$${Number(
+                      saldoCaja.total_tratamientos
+                    ).toFixed(2)}`
+                  : '-'}
+              </p>
+              <p>
+                <strong>Total pagado (Caja):</strong>{' '}
+                {saldoCaja.total_pagado != null
+                  ? `$${Number(saldoCaja.total_pagado).toFixed(2)}`
+                  : '-'}
+              </p>
+              <p>
+                <strong>Saldo pendiente (Caja):</strong>{' '}
+                {saldoCaja.saldo_pendiente != null
+                  ? `$${Number(
+                      saldoCaja.saldo_pendiente
+                    ).toFixed(2)}`
+                  : '-'}
+              </p>
+            </>
+          )}
+
+          {!loadingSaldoCaja && !saldoCajaError && !saldoCaja && (
+            <p>No se obtuvo información de Caja para este paciente.</p>
+          )}
+        </div>
+
+        <div style={{ marginTop: '0.75rem' }}>
           <button
             onClick={handleRegistrarPagoParcial}
             disabled={saving}
@@ -342,4 +429,4 @@ function CitaDetalle() {
 }
 
 export default CitaDetalle;
-//fin del documento 
+// fin del documento

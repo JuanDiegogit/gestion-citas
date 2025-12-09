@@ -87,7 +87,7 @@ async function crearCita(payload) {
     }
   }
 
-      const fechaCitaStr = normalizarFechaCita(fecha_cita);
+  const fechaCitaStr = normalizarFechaCita(fecha_cita);
 
   if (!fechaCitaStr) {
     const error = new Error('fecha_cita no tiene un formato de fecha válido');
@@ -131,7 +131,6 @@ async function crearCita(payload) {
     throw error;
   }
 
-  // A partir de aquí sigue igual tu lógica de transacción
   const folio = generarFolioCita();
 
   const estadoCita = 'PROGRAMADA';
@@ -176,7 +175,7 @@ async function crearCita(payload) {
   });
 
   // Notificación a Atención Clínica (best-effort, fuera de la transacción)
- try {
+  try {
     await atencionClinicaClient.notificarNuevaCita({
       id_cita,
       folio_cita: folio,
@@ -308,7 +307,8 @@ async function listarResumenCitas(rawFilters) {
 }
 
 /**
- * Detalle de una cita (incluye paciente, médico, tratamiento y anticipo).
+ * Detalle de una cita (incluye paciente, médico, tratamiento, anticipo
+ *  y saldo general del paciente consultado en Caja).
  */
 async function obtenerDetalleCita(idRaw) {
   if (!/^\d+$/.test(String(idRaw))) {
@@ -374,7 +374,7 @@ async function obtenerDetalleCita(idRaw) {
 
   const row = rows[0];
 
-  const cita = {
+  const citaBase = {
     id_cita: row.id_cita,
     folio_cita: row.folio_cita,
     fecha_registro: row.fecha_registro,
@@ -382,7 +382,7 @@ async function obtenerDetalleCita(idRaw) {
     estado_cita: row.estado_cita,
     estado_pago: row.estado_pago,
     monto_pagado: row.monto_pagado,
-  saldo_pendiente: row.saldo_pendiente,
+    saldo_pendiente: row.saldo_pendiente,
     monto_cobro: row.monto_cobro,
     saldo_paciente: row.saldo_paciente,
     paciente: {
@@ -420,7 +420,26 @@ async function obtenerDetalleCita(idRaw) {
       : null,
   };
 
-  return cita;
+  // ────────────────────────────────
+  // Consultar saldo general en Caja
+  // ────────────────────────────────
+  let saldoPacienteCaja = null;
+  try {
+    saldoPacienteCaja = await cajaClient.obtenerSaldoPaciente(row.id_paciente);
+  } catch (saldoErr) {
+    console.error(
+      '[SIGCD] Error consultando saldo del paciente en CAJA:',
+      saldoErr.cause?.response?.data ||
+        saldoErr.response?.data ||
+        saldoErr.message ||
+        saldoErr
+    );
+  }
+
+  return {
+    ...citaBase,
+    saldo_paciente_caja: saldoPacienteCaja,
+  };
 }
 
 /**
@@ -580,6 +599,7 @@ async function registrarPagoAnticipoEnCaja(idCita) {
     caja: resultadoCaja,
   };
 }
+
 // Normaliza la fecha/hora que viene del front (datetime-local)
 // a un string 'YYYY-MM-DD HH:MM:SS' sin tocar timezones.
 function normalizarFechaCita(fecha_cita) {
@@ -607,6 +627,7 @@ function normalizarFechaCita(fecha_cita) {
 
   return null;
 }
+
 async function registrarPagoParcial(idCitaRaw, payload) {
   const { monto, id_pago_caja, origen = 'CAJA', observaciones } = payload || {};
 
@@ -647,7 +668,6 @@ async function registrarPagoParcial(idCitaRaw, payload) {
     const nuevoMontoPagado = montoPagadoActual + montoNum;
     const nuevoSaldo = montoCobro - nuevoMontoPagado;
 
-    // Evitar que el saldo se vaya a números raros
     const saldoNormalizado = nuevoSaldo < 0 ? 0 : nuevoSaldo;
 
     let nuevoEstadoPago = 'PAGO_PARCIAL';
@@ -701,4 +721,4 @@ module.exports = {
   registrarPagoAnticipoEnCaja,
   registrarPagoParcial,
 };
-//fin del documento 
+// fin del documento

@@ -1,19 +1,22 @@
 // src/integrations/caja.client.js
 const axios = require('axios');
-const { CAJA_BASE_URL } = require('../config/env');
+const {
+  CAJA_BASE_URL,
+  CAJA_SALDO_PACIENTE_URL,
+} = require('../config/env');
 
 /*
   Instancia de Axios para la API de Caja
   (un solo punto para configurar baseURL, timeout, headers, etc.)
- */
+*/
 const http = axios.create({
   baseURL: CAJA_BASE_URL,
-  timeout: 500, // puedes subirlo si quieres, pero lo dejamos por ahora
+  timeout: 500, // puedes subirlo si quieres
 });
 
 /*
-  Helper genérico para POST a Caja con manejo de errores consistente.
- */
+  Helper genérico para POST a Caja (usando baseURL)
+*/
 async function safePost(path, body, options = {}) {
   try {
     const resp = await http.post(path, body, options);
@@ -31,8 +34,8 @@ async function safePost(path, body, options = {}) {
 }
 
 /*
- Helper genérico para GET a Caja con manejo de errores consistente.
- */
+  Helper genérico para GET a Caja (usando baseURL)
+*/
 async function safeGet(path, params = {}, options = {}) {
   try {
     const resp = await http.get(path, {
@@ -52,27 +55,49 @@ async function safeGet(path, params = {}, options = {}) {
   }
 }
 
+/*
+  Helper para POST usando URL COMPLETA (para endpoints de integración)
+*/
+async function safePostFullUrl(fullUrl, body, context = 'CAJA') {
+  try {
+    const resp = await axios.post(fullUrl, body);
+    return resp.data;
+  } catch (error) {
+    const detalle = error.response?.data || error.message;
+
+    console.error(`[${context}] Error en POST ${fullUrl}:`, detalle);
+
+    const err = new Error(`Error al comunicarse con ${context}`);
+    err.cause = error;
+    err.statusCode = error.response?.status || 502;
+    throw err;
+  }
+}
+
 /* ──────────────────────────────────────────────
    FUNCIONES ESPECÍFICAS DE LA API DE CAJA
-   (ajusta los paths si en tu API usan otros)
-   ────────────────────────────────────────────── 
+   ────────────────────────────────────────────── */
+
+/*
   Registrar un paciente en la API de Caja.
-  Equivale al POST /api/pacientes/registrar
- */
+  POST /api/pacientes/registrar
+*/
 async function registrarPaciente(paciente) {
-  // aquí NO validamos campos; esa validación es de tu servicio de Pacientes
   return safePost('/api/pacientes/registrar', paciente);
 }
 
 /*
- Crear un presupuesto en Caja.
- Equivale al POST /api/presupuestos/crear
- body esperado (según lo que ya usas en server.js):
-   { idPaciente, tratamientos }
- */
+  Crear un presupuesto en Caja.
+  POST /api/presupuestos/crear
+
+  body:
+    { idPaciente, tratamientos }
+*/
 async function crearPresupuesto({ idPaciente, tratamientos }) {
   if (!idPaciente || !Array.isArray(tratamientos) || tratamientos.length === 0) {
-    const err = new Error('idPaciente y tratamientos son obligatorios para crear un presupuesto en Caja');
+    const err = new Error(
+      'idPaciente y tratamientos son obligatorios para crear un presupuesto en Caja'
+    );
     err.statusCode = 400;
     throw err;
   }
@@ -80,38 +105,58 @@ async function crearPresupuesto({ idPaciente, tratamientos }) {
   return safePost('/api/presupuestos/crear', { idPaciente, tratamientos });
 }
 
-
-async function obtenerSaldoCaja(idPaciente) {
+/*
+  Obtener saldo del paciente usando la API de INTEGRACIÓN de Caja.
+  Usa la URL completa: CAJA_SALDO_PACIENTE_URL
+  (asumimos que el endpoint espera { idPaciente } por POST)
+*/
+async function obtenerSaldoPaciente(idPaciente) {
   if (!idPaciente) {
     const err = new Error('idPaciente es obligatorio para consultar el saldo en Caja');
     err.statusCode = 400;
     throw err;
   }
 
-  // Caja: GET /api/saldo/:idPaciente
-  return safeGet(`/api/saldo/${idPaciente}`);
+  const payload = { idPaciente: Number(idPaciente) };
+
+  return safePostFullUrl(
+    CAJA_SALDO_PACIENTE_URL,
+    payload,
+    'CAJA_SALDO_PACIENTE'
+  );
 }
 
 /*
- Bloquear un monto en Caja (reservar saldo, por ejemplo para anticipo).
- Equivale al POST /api/caja/bloquear-monto
- body esperado: { idPaciente, monto }
- */
+  Alias para no romper código antiguo que use "obtenerSaldoCaja"
+*/
+async function obtenerSaldoCaja(idPaciente) {
+  return obtenerSaldoPaciente(idPaciente);
+}
+
+/*
+  Bloquear un monto en Caja.
+  POST /api/caja/bloquear-monto
+  body: { idPaciente, monto }
+*/
 async function bloquearMonto({ idPaciente, monto }) {
   if (!idPaciente || !monto || Number(monto) <= 0) {
-    const err = new Error('idPaciente y monto (> 0) son obligatorios para bloquear monto en Caja');
+    const err = new Error(
+      'idPaciente y monto (> 0) son obligatorios para bloquear monto en Caja'
+    );
     err.statusCode = 400;
     throw err;
   }
 
   return safePost('/api/caja/bloquear-monto', { idPaciente, monto });
 }
-/**
- * Crear un cobro en la API de Caja.
- * Si hay timeout (ECONNABORTED) asumimos éxito parcial:
- *   - Es muy probable que Caja sí haya creado el cobro,
- *   - No tiramos error al front de SIGCD.
- */
+
+/*
+  Crear un cobro en Caja.
+  POST /api/cobros
+
+  Maneja especialmente el timeout: si es ECONNABORTED,
+  devolvemos un resultado "parcial" para no tronar SIGCD.
+*/
 async function crearCobroEnCaja({ idCita, idPaciente, monto, metodoPago }) {
   try {
     const resp = await http.post('/api/cobros', {
@@ -123,14 +168,12 @@ async function crearCobroEnCaja({ idCita, idPaciente, monto, metodoPago }) {
 
     return resp.data; // { mensaje, idCobro, ... }
   } catch (error) {
-    // Caso específico: timeout entre SIGCD y Caja
     if (error.code === 'ECONNABORTED') {
       console.warn(
         '[CAJA] Timeout esperando respuesta de /api/cobros; ' +
           'es probable que el cobro se haya creado correctamente en Caja.'
       );
 
-      // devolvemos un pseudo-resultado para que el servicio NO truene
       return {
         mensaje:
           'Cobro enviado a Caja (timeout al esperar la respuesta). Revisar en Caja si quedó registrado.',
@@ -138,7 +181,6 @@ async function crearCobroEnCaja({ idCita, idPaciente, monto, metodoPago }) {
       };
     }
 
-    // Otros errores sí se consideran fallo real
     const detalle = error.response?.data || error.message;
     console.error('[CAJA] Error en POST /api/cobros:', detalle);
 
@@ -149,22 +191,21 @@ async function crearCobroEnCaja({ idCita, idPaciente, monto, metodoPago }) {
   }
 }
 
-/**
- * Sincroniza un tratamiento con la API de Caja.
- *
- * Recibe un objeto "tratamiento" como el que devuelve tratamientos.repository:
- * {
- *   id_tratamiento,
- *   cve_trat,
- *   nombre,
- *   descripcion,
- *   precio_base,
- *   duracion_min,
- *   activo
- * }
- *
- * Lo envuelve en { tratamientos: [ ... ] } para el endpoint de Caja.
- */
+/*
+  Sincronizar tratamiento con la API de Caja.
+  POST /api/tratamientos/sync-desde-sigcd
+
+  tratamiento:
+  {
+    id_tratamiento,
+    cve_trat,
+    nombre,
+    descripcion,
+    precio_base,
+    duracion_min,
+    activo
+  }
+*/
 async function sincronizarTratamientoEnCaja(tratamiento) {
   if (!tratamiento || !tratamiento.nombre) {
     const err = new Error(
@@ -184,9 +225,10 @@ async function sincronizarTratamientoEnCaja(tratamiento) {
 module.exports = {
   registrarPaciente,
   crearPresupuesto,
-  obtenerSaldoCaja,
+  obtenerSaldoPaciente,
+  obtenerSaldoCaja, // alias
   bloquearMonto,
   crearCobroEnCaja,
   sincronizarTratamientoEnCaja,
 };
-//fin del documento
+// fin del documento
