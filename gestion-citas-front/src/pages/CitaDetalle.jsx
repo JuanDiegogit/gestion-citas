@@ -199,7 +199,6 @@ function CitaDetalle() {
     monto_cobro,
     monto_pagado,
     saldo_pendiente,
-    saldo_paciente, // este viene de SIGCD (columna en tabla citas)
     paciente,
     medico,
     tratamiento,
@@ -309,13 +308,6 @@ function CitaDetalle() {
             ? `$${Number(saldo_pendiente).toFixed(2)}`
             : '-'}
         </p>
-        <p>
-          <strong>Saldo paciente (guardado en SIGCD):</strong>{' '}
-          {saldo_paciente != null
-            ? `$${Number(saldo_paciente).toFixed(2)}`
-            : '-'}
-        </p>
-
         {/* Bloque con info en vivo desde CAJA */}
         <div
           style={{

@@ -42,6 +42,36 @@ async function withTransaction(callback) {
 }
 
 /**
+ * Normaliza la fecha/hora que viene del front (datetime-local)
+ * a un string 'YYYY-MM-DD HH:MM:SS' sin tocar timezones.
+ */
+function normalizarFechaCita(fecha_cita) {
+  if (!fecha_cita) return null;
+
+  if (typeof fecha_cita === 'string') {
+    let f = fecha_cita.trim();
+    if (!f) return null;
+
+    // Aceptar tanto "2025-12-05T16:00" como "2025-12-05 16:00"
+    f = f.replace('T', ' ');
+
+    // Si viene sin segundos, se los agregamos
+    if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(f)) {
+      f = `${f}:00`;
+    }
+
+    // Validación mínima de formato final
+    if (!/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(f)) {
+      return null;
+    }
+
+    return f;
+  }
+
+  return null;
+}
+
+/**
  * Crea una cita (con o sin anticipo) y notifica a Atención Clínica.
  */
 async function crearCita(payload) {
@@ -309,6 +339,9 @@ async function listarResumenCitas(rawFilters) {
 /**
  * Detalle de una cita (incluye paciente, médico, tratamiento, anticipo
  *  y saldo general del paciente consultado en Caja).
+ *
+ * MUY IMPORTANTE: el controller responde como { cita: ... }
+ * y el front hace data.cita
  */
 async function obtenerDetalleCita(idRaw) {
   if (!/^\d+$/.test(String(idRaw))) {
@@ -331,7 +364,6 @@ async function obtenerDetalleCita(idRaw) {
       c.monto_cobro,
       c.monto_pagado,
       c.saldo_pendiente,
-      IFNULL(c.saldo_paciente, 0) AS saldo_paciente,
       p.id_paciente,
       p.nombre           AS nombre_paciente,
       p.apellidos        AS apellidos_paciente,
@@ -384,7 +416,6 @@ async function obtenerDetalleCita(idRaw) {
     monto_pagado: row.monto_pagado,
     saldo_pendiente: row.saldo_pendiente,
     monto_cobro: row.monto_cobro,
-    saldo_paciente: row.saldo_paciente,
     paciente: {
       id_paciente: row.id_paciente,
       nombre: row.nombre_paciente,
@@ -447,6 +478,7 @@ async function obtenerDetalleCita(idRaw) {
  */
 async function confirmarPagoCita(idCitaRaw, payload) {
   const { id_pago, monto_pagado, origen } = payload || {};
+
 
   if (!/^\d+$/.test(String(idCitaRaw))) {
     const err = new Error('El id de la cita debe ser un entero positivo');
@@ -600,34 +632,6 @@ async function registrarPagoAnticipoEnCaja(idCita) {
   };
 }
 
-// Normaliza la fecha/hora que viene del front (datetime-local)
-// a un string 'YYYY-MM-DD HH:MM:SS' sin tocar timezones.
-function normalizarFechaCita(fecha_cita) {
-  if (!fecha_cita) return null;
-
-  if (typeof fecha_cita === 'string') {
-    let f = fecha_cita.trim();
-    if (!f) return null;
-
-    // Aceptar tanto "2025-12-05T16:00" como "2025-12-05 16:00"
-    f = f.replace('T', ' ');
-
-    // Si viene sin segundos, se los agregamos
-    if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(f)) {
-      f = `${f}:00`;
-    }
-
-    // Validación mínima de formato final
-    if (!/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(f)) {
-      return null;
-    }
-
-    return f;
-  }
-
-  return null;
-}
-
 async function registrarPagoParcial(idCitaRaw, payload) {
   const { monto, id_pago_caja, origen = 'CAJA', observaciones } = payload || {};
 
@@ -721,4 +725,4 @@ module.exports = {
   registrarPagoAnticipoEnCaja,
   registrarPagoParcial,
 };
-// fin del documento
+//fin del documento
